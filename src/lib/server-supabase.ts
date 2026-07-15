@@ -9,18 +9,17 @@ function initServerSupabase(): SupabaseClient {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl) {
-    throw new Error('Supabase URL and API key must be provided')
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error('Supabase URL and service role key must be provided')
   }
 
-  const apiKey = supabaseServiceRoleKey || supabaseAnonKey
-  if (!apiKey) {
-    throw new Error('Supabase URL and API key must be provided')
-  }
-
-  supabaseInstance = createClient(supabaseUrl, apiKey)
+  supabaseInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
   return supabaseInstance
 }
 
@@ -29,7 +28,8 @@ export const serverSupabase = new Proxy(
   {
     get(_, prop) {
       const client = initServerSupabase()
-      return Reflect.get(client, prop)
+      const value = Reflect.get(client, prop)
+      return typeof value === 'function' ? value.bind(client) : value
     },
   }
 ) as SupabaseClient

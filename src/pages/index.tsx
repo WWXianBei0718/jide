@@ -60,7 +60,7 @@ export default function LoginPage() {
           setError(signinError.message);
         }
       }
-    } catch (err) {
+    } catch {
       setError('网络错误，请稍后重试');
     }
     setIsSubmitting(false);

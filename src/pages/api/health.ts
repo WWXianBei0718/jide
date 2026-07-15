@@ -5,6 +5,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
     const { data, error } = await supabase.from('memory_profiles').select('id').limit(1);
     
@@ -18,7 +23,7 @@ export default async function handler(
       table_exists: true,
       sample_data: data?.length > 0
     });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ 
       status: 'error', 
       message: 'Database connection failed' 

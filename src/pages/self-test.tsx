@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 
@@ -12,14 +12,14 @@ interface TestResult {
 }
 
 export default function SelfTestPage() {
-  const { user, loading, signIn, getToken } = useAuth();
+  const { user, loading, getToken } = useAuth();
   const router = useRouter();
   const [results, setResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [overallStatus, setOverallStatus] = useState<'pending' | 'running' | 'success' | 'partial' | 'error'>('pending');
-  const [testProfileId, setTestProfileId] = useState<string | null>(null);
+  const testProfileIdRef = useRef<string | null>(null);
 
-  const TESTS = [
+  const tests = useMemo(() => [
     {
       id: 'auth-init',
       name: '认证初始化',
@@ -72,7 +72,7 @@ export default function SelfTestPage() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '创建失败');
-        setTestProfileId(data.id);
+        testProfileIdRef.current = data.id;
         return `记忆体创建成功: ${data.id}`;
       },
     },
@@ -97,9 +97,10 @@ export default function SelfTestPage() {
       name: '获取单个记忆体',
       category: '业务功能',
       run: async () => {
-        if (!testProfileId) return '跳过（依赖创建测试）';
+        const profileId = testProfileIdRef.current;
+        if (!profileId) return '跳过（依赖创建测试）';
         const token = await getToken();
-        const res = await fetch(`/api/profile?id=${testProfileId}`, {
+        const res = await fetch(`/api/profile?id=${profileId}`, {
           headers: { 
             'Authorization': `Bearer ${token}`,
           },
@@ -114,7 +115,8 @@ export default function SelfTestPage() {
       name: 'OpenAI API',
       category: 'AI服务',
       run: async () => {
-        if (!testProfileId) return '跳过（依赖创建测试）';
+        const profileId = testProfileIdRef.current;
+        if (!profileId) return '跳过（依赖创建测试）';
         const token = await getToken();
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -123,7 +125,7 @@ export default function SelfTestPage() {
             'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({
-            profileId: testProfileId,
+            profileId,
             message: '你好',
             model: 'gpt-4o',
           }),
@@ -154,7 +156,8 @@ export default function SelfTestPage() {
       name: '删除测试记忆体',
       category: '业务功能',
       run: async () => {
-        if (!testProfileId) return '跳过（依赖创建测试）';
+        const profileId = testProfileIdRef.current;
+        if (!profileId) return '跳过（依赖创建测试）';
         const token = await getToken();
         const res = await fetch('/api/profile', {
           method: 'DELETE',
@@ -162,19 +165,19 @@ export default function SelfTestPage() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
           },
-          body: JSON.stringify({ id: testProfileId }),
+          body: JSON.stringify({ id: profileId }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '删除失败');
-        setTestProfileId(null);
+        testProfileIdRef.current = null;
         return '记忆体删除成功';
       },
     },
-  ];
+  ], [getToken, loading, user]);
 
   useEffect(() => {
     setResults(
-      TESTS.map(t => ({
+      tests.map(t => ({
         id: t.id,
         name: t.name,
         category: t.category,
@@ -182,11 +185,11 @@ export default function SelfTestPage() {
         message: '',
       }))
     );
-  }, []);
+  }, [tests]);
 
-  const runTest = async (testId: string) => {
-    const test = TESTS.find(t => t.id === testId);
-    if (!test) return;
+  const runTest = useCallback(async (testId: string): Promise<boolean> => {
+    const test = tests.find(t => t.id === testId);
+    if (!test) return false;
 
     setResults(prev =>
       prev.map(r => (r.id === testId ? { ...r, status: 'running', message: '测试中...' } : r))
@@ -203,6 +206,7 @@ export default function SelfTestPage() {
             : r
         )
       );
+      return true;
     } catch (error) {
       const duration = Date.now() - startTime;
       setResults(prev =>
@@ -212,21 +216,23 @@ export default function SelfTestPage() {
             : r
         )
       );
+      return false;
     }
-  };
+  }, [tests]);
 
   const runAllTests = async () => {
     setIsRunning(true);
     setOverallStatus('running');
-    setTestProfileId(null);
+    testProfileIdRef.current = null;
 
-    for (const test of TESTS) {
-      await runTest(test.id);
+    let successCount = 0;
+    let errorCount = 0;
+    for (const test of tests) {
+      const succeeded = await runTest(test.id);
+      if (succeeded) successCount += 1;
+      else errorCount += 1;
       await new Promise(resolve => setTimeout(resolve, 500));
     }
-
-    const successCount = results.filter(r => r.status === 'success').length;
-    const errorCount = results.filter(r => r.status === 'error').length;
 
     if (errorCount === 0) {
       setOverallStatus('success');
@@ -241,7 +247,7 @@ export default function SelfTestPage() {
 
   const resetTests = () => {
     setResults(
-      TESTS.map(t => ({
+      tests.map(t => ({
         id: t.id,
         name: t.name,
         category: t.category,
@@ -250,7 +256,7 @@ export default function SelfTestPage() {
       }))
     );
     setOverallStatus('pending');
-    setTestProfileId(null);
+    testProfileIdRef.current = null;
   };
 
   const getStatusColor = (status: TestResult['status']) => {
@@ -350,7 +356,7 @@ export default function SelfTestPage() {
           </div>
 
           <div className="space-y-4">
-            {TESTS.map(test => {
+            {tests.map(test => {
               const result = results.find(r => r.id === test.id);
               if (!result) return null;
               return (

@@ -15,8 +15,12 @@ export default async function handler(
 
   const { profileId, text } = req.body;
 
-  if (!profileId || !text) {
+  if (typeof profileId !== 'string' || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'Missing required fields: profileId and text' });
+  }
+
+  if (text.length > 5000) {
+    return res.status(400).json({ error: 'Text must be 5000 characters or fewer' });
   }
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, res);
@@ -48,7 +52,7 @@ export default async function handler(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text,
+        text: text.trim(),
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
           stability: 0.5,

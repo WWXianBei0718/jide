@@ -91,7 +91,7 @@ export default function TrainVoicePage() {
         setAudioFiles([]);
         fetchProfile();
       }
-    } catch (err) {
+    } catch {
       setError('训练失败，请稍后重试');
     } finally {
       setIsTraining(false);

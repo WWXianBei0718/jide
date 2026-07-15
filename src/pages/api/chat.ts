@@ -15,8 +15,25 @@ export default async function handler(
 
   const { profileId, message, model = 'gpt-4o', temperature = 0.7, maxTokens = 2000 } = req.body;
 
-  if (!profileId || !message) {
+  if (typeof profileId !== 'string' || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'Missing required fields: profileId and message' });
+  }
+
+  if (message.length > 4000) {
+    return res.status(400).json({ error: 'Message must be 4000 characters or fewer' });
+  }
+
+  const parsedTemperature = Number(temperature);
+  const parsedMaxTokens = Number(maxTokens);
+  if (!Number.isFinite(parsedTemperature) || parsedTemperature < 0 || parsedTemperature > 2) {
+    return res.status(400).json({ error: 'Temperature must be between 0 and 2' });
+  }
+  if (!Number.isInteger(parsedMaxTokens) || parsedMaxTokens < 1 || parsedMaxTokens > 4000) {
+    return res.status(400).json({ error: 'maxTokens must be an integer between 1 and 4000' });
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({ error: 'OpenAI API key not configured' });
   }
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, res);
@@ -52,6 +69,10 @@ export default async function handler(
       .select('content')
       .eq('memory_profile_id', profileId)
       .limit(10);
+
+    if (materialsError) {
+      console.error('Failed to fetch profile materials:', materialsError);
+    }
 
     const materialContext = materials && materials.length > 0
       ? `\n\n以下是关于${profile.name}的更多资料：\n${materials.map((m: { content: string }) => m.content).join('\n\n')}`
@@ -109,13 +130,13 @@ ${materialContext}
           },
           {
             role: 'user',
-            content: message,
+            content: message.trim(),
           },
         ],
-        temperature: parseFloat(temperature.toString()),
+        temperature: parsedTemperature,
         presence_penalty: 0.2,
         frequency_penalty: 0.1,
-        max_tokens: parseInt(maxTokens.toString()),
+        max_tokens: parsedMaxTokens,
       }),
     });
 

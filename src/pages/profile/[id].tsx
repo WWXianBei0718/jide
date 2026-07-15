@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
@@ -11,16 +11,8 @@ export default function ProfileDetailPage() {
   const router = useRouter();
   const { id } = router.query;
 
-  useEffect(() => {
-    if (!user || !id) {
-      router.push('/');
-      return;
-    }
-
-    fetchProfile();
-  }, [user, id, router]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
+    if (!id) return;
     setIsLoading(true);
     const { data, error } = await supabase
       .from('memory_profiles')
@@ -34,7 +26,16 @@ export default function ProfileDetailPage() {
       setProfile(data || null);
     }
     setIsLoading(false);
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (!user || !id) {
+      router.push('/');
+      return;
+    }
+
+    fetchProfile();
+  }, [user, id, router, fetchProfile]);
 
   if (loading || !user || isLoading) {
     return (

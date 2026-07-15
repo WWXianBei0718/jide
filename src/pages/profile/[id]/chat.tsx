@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
@@ -14,30 +14,18 @@ export default function ChatPage() {
   const router = useRouter();
   const { id } = router.query;
 
-  useEffect(() => {
-    if (!user || !id) {
-      router.push('/');
-      return;
-    }
-
-    fetchProfile();
-    fetchMessages();
-  }, [user, id, router]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
+    if (!id) return;
     const { data } = await supabase
       .from('memory_profiles')
       .select('*')
       .eq('id', id)
       .single();
     setProfile(data || null);
-  };
+  }, [id]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
+    if (!id) return;
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -47,7 +35,21 @@ export default function ChatPage() {
     if (!error && data) {
       setMessages(data);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (!user || !id) {
+      router.push('/');
+      return;
+    }
+
+    fetchProfile();
+    fetchMessages();
+  }, [user, id, router, fetchProfile, fetchMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || !user || !id) return;

@@ -2,6 +2,19 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { serverSupabase } from '@/lib/server-supabase';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 
+interface AudioFilePayload {
+  filename: string;
+  content: string;
+}
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '25mb',
+    },
+  },
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -15,8 +28,20 @@ export default async function handler(
 
   const { profileId, audioFiles } = req.body;
 
-  if (!profileId || !audioFiles || !Array.isArray(audioFiles) || audioFiles.length === 0) {
+  if (typeof profileId !== 'string' || !Array.isArray(audioFiles) || audioFiles.length === 0) {
     return res.status(400).json({ error: 'Missing required fields: profileId and audioFiles' });
+  }
+
+  if (audioFiles.length > 10 || !audioFiles.every((file): file is AudioFilePayload =>
+    typeof file?.filename === 'string' && file.filename.length > 0 && file.filename.length <= 255 &&
+    typeof file?.content === 'string' && file.content.length > 0
+  )) {
+    return res.status(400).json({ error: 'Invalid audio files' });
+  }
+
+  const totalEncodedSize = audioFiles.reduce((total, file) => total + file.content.length, 0);
+  if (totalEncodedSize > 20 * 1024 * 1024) {
+    return res.status(413).json({ error: 'Audio files are too large' });
   }
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, res);
@@ -40,7 +65,7 @@ export default async function handler(
     const formData = new FormData();
     formData.append('name', `${profile.name} 的声音`);
     
-    audioFiles.forEach((file: { filename: string; content: string }, index: number) => {
+    audioFiles.forEach((file, index) => {
       const buffer = Buffer.from(file.content, 'base64');
       const blob = new Blob([buffer]);
       formData.append(`files[${index}]`, blob, file.filename);
@@ -62,10 +87,16 @@ export default async function handler(
     }
 
     if (data.voice_id) {
-      await serverSupabase
+      const { error: updateError } = await serverSupabase
         .from('memory_profiles')
         .update({ voice_id: data.voice_id })
-        .eq('id', profileId);
+        .eq('id', profileId)
+        .eq('user_id', user.id);
+
+      if (updateError) {
+        console.error('Failed to save cloned voice ID:', updateError);
+        return res.status(500).json({ error: 'Voice was created but could not be saved to the profile' });
+      }
     }
 
     return res.status(200).json({

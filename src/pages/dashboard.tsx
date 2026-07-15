@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
@@ -11,24 +11,14 @@ export default function DashboardPage() {
   const router = useRouter();
   const redirectRef = useRef(false);
 
-  useEffect(() => {
-    if (!loading && !user && !redirectRef.current) {
-      redirectRef.current = true;
-      router.push('/');
-    }
-
-    if (user) {
-      fetchProfiles();
-    }
-  }, [user, loading, router]);
-
-  const fetchProfiles = async () => {
+  const fetchProfiles = useCallback(async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('memory_profiles')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -40,7 +30,18 @@ export default function DashboardPage() {
       console.error('Failed to fetch profiles');
     }
     setIsLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user && !redirectRef.current) {
+      redirectRef.current = true;
+      router.push('/');
+    }
+
+    if (user) {
+      fetchProfiles();
+    }
+  }, [user, loading, router, fetchProfiles]);
 
   const handleSignOut = async () => {
     await signOut();

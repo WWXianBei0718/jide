@@ -1,10 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const assessment = {
     project: {
       name: '记得',
@@ -60,7 +64,6 @@ export default async function handler(
             params: {
               profileId: '记忆体ID',
               message: '用户消息',
-              userId: '用户ID',
               model: 'gpt-3.5/gpt-4o/gpt-5.5',
               temperature: '0-1',
             },
@@ -81,7 +84,6 @@ export default async function handler(
             params: {
               profileId: '记忆体ID',
               audioFiles: '音频文件数组',
-              userId: '用户ID',
             },
           },
         ],
@@ -100,7 +102,6 @@ export default async function handler(
             params: {
               profileId: '记忆体ID',
               text: '要合成的文本',
-              userId: '用户ID',
             },
           },
         ],

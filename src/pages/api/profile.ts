@@ -28,6 +28,9 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
 
   try {
     if (id) {
+      if (typeof id !== 'string') {
+        return res.status(400).json({ error: 'Invalid profile ID' });
+      }
       const { data: profile, error } = await serverSupabase
         .from('memory_profiles')
         .select('*')
@@ -53,7 +56,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
 
       return res.status(200).json(profiles);
     }
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: 'Failed to fetch profiles' });
   }
 }
@@ -61,8 +64,12 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
 async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: string) {
   const { name, relation, gender, birth_date, short_description } = req.body;
 
-  if (!name || !relation) {
+  if (typeof name !== 'string' || !name.trim() || typeof relation !== 'string' || !relation.trim()) {
     return res.status(400).json({ error: 'Name and relation are required' });
+  }
+
+  if (name.length > 100 || relation.length > 100 || (typeof short_description === 'string' && short_description.length > 5000)) {
+    return res.status(400).json({ error: 'Profile fields exceed the allowed length' });
   }
 
   try {
@@ -70,8 +77,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
       .from('memory_profiles')
       .insert({
         user_id: userId,
-        name,
-        relation,
+        name: name.trim(),
+        relation: relation.trim(),
         gender: gender || null,
         birth_date: birth_date || null,
         short_description: short_description || null,
@@ -84,33 +91,53 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
     }
 
     return res.status(201).json(profile);
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: 'Failed to create profile' });
   }
 }
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: string) {
-  const { id, name, relation, gender, birth_date, short_description, voice_id } = req.body;
+  const { id, name, relation, gender, birth_date, short_description } = req.body;
 
-  if (!id) {
+  if (typeof id !== 'string' || !id) {
     return res.status(400).json({ error: 'Profile ID is required' });
   }
 
   const isOwner = await verifyProfileOwnership(id, userId, res);
   if (!isOwner) return;
 
+  const updates: Record<string, string | null> = {};
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 100) {
+      return res.status(400).json({ error: 'Invalid name' });
+    }
+    updates.name = name.trim();
+  }
+  if (relation !== undefined) {
+    if (typeof relation !== 'string' || !relation.trim() || relation.length > 100) {
+      return res.status(400).json({ error: 'Invalid relation' });
+    }
+    updates.relation = relation.trim();
+  }
+  if (gender !== undefined) updates.gender = typeof gender === 'string' && gender ? gender : null;
+  if (birth_date !== undefined) updates.birth_date = typeof birth_date === 'string' && birth_date ? birth_date : null;
+  if (short_description !== undefined) {
+    if (typeof short_description !== 'string' || short_description.length > 5000) {
+      return res.status(400).json({ error: 'Invalid short description' });
+    }
+    updates.short_description = short_description || null;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No supported fields to update' });
+  }
+
   try {
     const { data: profile, error } = await serverSupabase
       .from('memory_profiles')
-      .update({
-        name,
-        relation,
-        gender: gender || null,
-        birth_date: birth_date || null,
-        short_description: short_description || null,
-        voice_id: voice_id || null,
-      })
+      .update(updates)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -119,7 +146,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
     }
 
     return res.status(200).json(profile);
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: 'Failed to update profile' });
   }
 }
@@ -127,7 +154,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
 async function handleDelete(req: NextApiRequest, res: NextApiResponse, userId: string) {
   const { id } = req.body;
 
-  if (!id) {
+  if (typeof id !== 'string' || !id) {
     return res.status(400).json({ error: 'Profile ID is required' });
   }
 
@@ -138,14 +165,15 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse, userId: s
     const { error } = await serverSupabase
       .from('memory_profiles')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       return res.status(500).json({ error: error.message });
     }
 
     return res.status(200).json({ message: 'Profile deleted successfully' });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: 'Failed to delete profile' });
   }
 }
