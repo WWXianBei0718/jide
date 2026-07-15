@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
-import { supabase } from '@/lib/supabase';
 import type { MemoryProfile } from '@/types';
 
 export default function ProfileDetailPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, getToken } = useAuth();
   const [profile, setProfile] = useState<MemoryProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
@@ -14,19 +13,17 @@ export default function ProfileDetailPage() {
   const fetchProfile = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('memory_profiles')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching profile:', error);
+    const token = await getToken();
+    const response = await fetch(`/api/profile?id=${encodeURIComponent(String(id))}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      setProfile(await response.json());
     } else {
-      setProfile(data || null);
+      setProfile(null);
     }
     setIsLoading(false);
-  }, [id]);
+  }, [getToken, id]);
 
   useEffect(() => {
     if (!user || !id) {
@@ -104,7 +101,7 @@ export default function ProfileDetailPage() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <button
                 onClick={() => router.push(`/profile/${profile.id}/materials`)}
                 className="flex-1 px-6 py-3 border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 transition font-medium flex items-center justify-center gap-2"
@@ -116,6 +113,12 @@ export default function ProfileDetailPage() {
                 className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition font-medium flex items-center justify-center gap-2"
               >
                 <span>开始对话</span>
+              </button>
+              <button
+                onClick={() => router.push(`/train-voice?profileId=${profile.id}`)}
+                className="px-6 py-3 border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 transition font-medium"
+              >
+                {profile.voice_id ? '更新声音' : '训练声音'}
               </button>
             </div>
           </div>

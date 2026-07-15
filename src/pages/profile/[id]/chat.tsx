@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
-import { supabase } from '@/lib/supabase';
 import type { MemoryProfile, Message } from '@/types';
 
 export default function ChatPage() {
@@ -10,32 +9,33 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
+  const [audioLoadingId, setAudioLoadingId] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { id } = router.query;
 
+  const authorizedFetch = useCallback(async (url: string, init: RequestInit = {}) => {
+    const token = await getToken();
+    if (!token) throw new Error('登录已失效，请重新登录');
+    return fetch(url, {
+      ...init,
+      headers: { ...init.headers, Authorization: `Bearer ${token}` },
+    });
+  }, [getToken]);
+
   const fetchProfile = useCallback(async () => {
     if (!id) return;
-    const { data } = await supabase
-      .from('memory_profiles')
-      .select('*')
-      .eq('id', id)
-      .single();
-    setProfile(data || null);
-  }, [id]);
+    const response = await authorizedFetch(`/api/profile?id=${encodeURIComponent(String(id))}`);
+    if (response.ok) setProfile(await response.json());
+  }, [authorizedFetch, id]);
 
   const fetchMessages = useCallback(async () => {
     if (!id) return;
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('memory_profile_id', id)
-      .order('created_at', { ascending: true });
-
-    if (!error && data) {
-      setMessages(data);
-    }
-  }, [id]);
+    const response = await authorizedFetch(`/api/messages?profileId=${encodeURIComponent(String(id))}`);
+    if (response.ok) setMessages(await response.json());
+  }, [authorizedFetch, id]);
 
   useEffect(() => {
     if (!user || !id) {
@@ -54,13 +54,16 @@ export default function ChatPage() {
   const handleSend = async () => {
     if (!inputValue.trim() || !user || !id) return;
 
+    const messageText = inputValue.trim();
+    const pendingId = `pending-${Date.now()}`;
+
     const userMessage: Message = {
-      id: '',
+      id: pendingId,
       conversation_id: '',
       memory_profile_id: id as string,
       user_id: user.id,
       role: 'user',
-      content: inputValue.trim(),
+      content: messageText,
       retrieved_context: null,
       created_at: new Date().toISOString(),
     };
@@ -70,50 +73,28 @@ export default function ChatPage() {
     setIsTyping(true);
 
     try {
-      const { data: savedMessage } = await supabase.from('messages').insert({
-        memory_profile_id: id,
-        user_id: user.id,
-        role: 'user',
-        content: inputValue.trim(),
-      }).select().single();
-
-      if (savedMessage) {
-        setMessages((prev) => prev.map((m) => 
-          m.content === inputValue.trim() && m.role === 'user' 
-            ? { ...m, id: savedMessage.id } 
-            : m
-        ));
-      }
-
-      const token = await getToken();
-      const response = await fetch('/api/chat', {
+      const response = await authorizedFetch('/api/chat', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           profileId: id,
-          message: inputValue.trim(),
+          message: messageText,
         }),
       });
 
-      const { content } = await response.json();
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '发送失败');
 
-      const { data: assistantMessage } = await supabase.from('messages').insert({
-        memory_profile_id: id,
-        user_id: user.id,
-        role: 'assistant',
-        content,
-      }).select().single();
-
-      if (assistantMessage) {
-        setMessages((prev) => [...prev, assistantMessage]);
-      }
+      setMessages((prev) => [
+        ...prev.map((item) => item.id === pendingId ? data.userMessage : item),
+        data.assistantMessage,
+      ]);
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages((prev) => [...prev, {
-        id: '',
+        id: `error-${Date.now()}`,
         conversation_id: '',
         memory_profile_id: id as string,
         user_id: user.id,
@@ -131,6 +112,29 @@ export default function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleSynthesize = async (message: Message) => {
+    if (!id || !profile?.voice_id || !message.id) return;
+    setAudioLoadingId(message.id);
+    setAudioError('');
+    try {
+      const response = await authorizedFetch('/api/voice-synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: id, text: message.content }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '语音生成失败');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      setAudioUrls((current) => ({ ...current, [message.id]: url }));
+    } catch (error) {
+      setAudioError(error instanceof Error ? error.message : '语音生成失败');
+    } finally {
+      setAudioLoadingId(null);
     }
   };
 
@@ -164,6 +168,9 @@ export default function ChatPage() {
       </header>
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6">
+        {audioError && (
+          <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg">{audioError}</div>
+        )}
         <div className="bg-white rounded-2xl shadow-sm h-full flex flex-col">
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.length === 0 ? (
@@ -190,6 +197,23 @@ export default function ChatPage() {
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.role === 'assistant' && profile?.voice_id && (
+                      <div className="mt-3">
+                        {audioUrls[message.id] ? (
+                          <audio src={audioUrls[message.id]} controls className="max-w-full h-9">
+                            您的浏览器不支持音频播放。
+                          </audio>
+                        ) : (
+                          <button
+                            onClick={() => handleSynthesize(message)}
+                            disabled={audioLoadingId === message.id}
+                            className="text-xs text-primary-700 hover:text-primary-800 disabled:opacity-50"
+                          >
+                            {audioLoadingId === message.id ? '正在生成声音…' : `用 ${profile.name} 的声音播放`}
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <p className="text-xs mt-1 opacity-60">
                       {new Date(message.created_at).toLocaleTimeString('zh-CN', {
                         hour: '2-digit',

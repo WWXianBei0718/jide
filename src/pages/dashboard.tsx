@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
-import { supabase } from '@/lib/supabase';
 import type { MemoryProfile } from '@/types';
 
 export default function DashboardPage() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, getToken } = useAuth();
   const [profiles, setProfiles] = useState<MemoryProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
@@ -15,22 +14,17 @@ export default function DashboardPage() {
     if (!user) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('memory_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching profiles:', error);
-      } else {
-        setProfiles(data || []);
-      }
+      const token = await getToken();
+      const response = await fetch('/api/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch profiles');
+      setProfiles(await response.json());
     } catch {
       console.error('Failed to fetch profiles');
     }
     setIsLoading(false);
-  }, [user]);
+  }, [getToken, user]);
 
   useEffect(() => {
     if (!loading && !user && !redirectRef.current) {

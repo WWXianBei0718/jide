@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { serverSupabase } from '@/lib/server-supabase';
-import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
+import { authenticate, verifyProfileOwnership, type AuthenticatedUser } from '@/lib/auth-middleware';
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,19 +10,19 @@ export default async function handler(
 
   switch (req.method) {
     case 'GET':
-      return handleGet(req, res, user.id);
+      return handleGet(req, res, user);
     case 'POST':
-      return handlePost(req, res, user.id);
+      return handlePost(req, res, user);
     case 'PUT':
-      return handlePut(req, res, user.id);
+      return handlePut(req, res, user);
     case 'DELETE':
-      return handleDelete(req, res, user.id);
+      return handleDelete(req, res, user);
     default:
       return res.status(405).json({ error: 'Method not allowed' });
   }
 }
 
-async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: string) {
+async function handleGet(req: NextApiRequest, res: NextApiResponse, user: AuthenticatedUser) {
   const { id } = req.query;
 
   try {
@@ -31,11 +30,11 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
       if (typeof id !== 'string') {
         return res.status(400).json({ error: 'Invalid profile ID' });
       }
-      const { data: profile, error } = await serverSupabase
+      const { data: profile, error } = await user.client
         .from('memory_profiles')
         .select('*')
         .eq('id', id)
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .single();
 
       if (error || !profile) {
@@ -44,10 +43,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
 
       return res.status(200).json(profile);
     } else {
-      const { data: profiles, error } = await serverSupabase
+      const { data: profiles, error } = await user.client
         .from('memory_profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -61,7 +60,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
   }
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: string) {
+async function handlePost(req: NextApiRequest, res: NextApiResponse, user: AuthenticatedUser) {
   const { name, relation, gender, birth_date, short_description } = req.body;
 
   if (typeof name !== 'string' || !name.trim() || typeof relation !== 'string' || !relation.trim()) {
@@ -73,10 +72,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
   }
 
   try {
-    const { data: profile, error } = await serverSupabase
+    const { data: profile, error } = await user.client
       .from('memory_profiles')
       .insert({
-        user_id: userId,
+        user_id: user.id,
         name: name.trim(),
         relation: relation.trim(),
         gender: gender || null,
@@ -96,14 +95,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
   }
 }
 
-async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: string) {
+async function handlePut(req: NextApiRequest, res: NextApiResponse, user: AuthenticatedUser) {
   const { id, name, relation, gender, birth_date, short_description } = req.body;
 
   if (typeof id !== 'string' || !id) {
     return res.status(400).json({ error: 'Profile ID is required' });
   }
 
-  const isOwner = await verifyProfileOwnership(id, userId, res);
+  const isOwner = await verifyProfileOwnership(id, user.id, user.client, res);
   if (!isOwner) return;
 
   const updates: Record<string, string | null> = {};
@@ -133,11 +132,11 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
   }
 
   try {
-    const { data: profile, error } = await serverSupabase
+    const { data: profile, error } = await user.client
       .from('memory_profiles')
       .update(updates)
       .eq('id', id)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .select()
       .single();
 
@@ -151,22 +150,22 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
   }
 }
 
-async function handleDelete(req: NextApiRequest, res: NextApiResponse, userId: string) {
+async function handleDelete(req: NextApiRequest, res: NextApiResponse, user: AuthenticatedUser) {
   const { id } = req.body;
 
   if (typeof id !== 'string' || !id) {
     return res.status(400).json({ error: 'Profile ID is required' });
   }
 
-  const isOwner = await verifyProfileOwnership(id, userId, res);
+  const isOwner = await verifyProfileOwnership(id, user.id, user.client, res);
   if (!isOwner) return;
 
   try {
-    const { error } = await serverSupabase
+    const { error } = await user.client
       .from('memory_profiles')
       .delete()
       .eq('id', id)
-      .eq('user_id', userId);
+      .eq('user_id', user.id);
 
     if (error) {
       return res.status(500).json({ error: error.message });

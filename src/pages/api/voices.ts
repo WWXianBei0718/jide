@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { serverSupabase } from '@/lib/server-supabase';
 import { authenticate } from '@/lib/auth-middleware';
 
 interface ElevenLabsVoice {
@@ -24,7 +23,7 @@ export default async function handler(
   }
 
   try {
-    const { data: profiles, error: profilesError } = await serverSupabase
+    const { data: profiles, error: profilesError } = await user.client
       .from('memory_profiles')
       .select('voice_id, name')
       .eq('user_id', user.id)

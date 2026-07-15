@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
-import { supabase } from '@/lib/supabase';
 
 export default function CreateProfilePage() {
-  const { user, loading } = useAuth();
+  const { user, loading, getToken } = useAuth();
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
   const [gender, setGender] = useState('');
@@ -24,22 +23,33 @@ export default function CreateProfilePage() {
     }
 
     setIsSubmitting(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('登录已失效，请重新登录');
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          relation,
+          gender: gender || null,
+          birth_date: birthDate || null,
+          short_description: description || null,
+        }),
+      });
 
-    const { error: insertError } = await supabase.from('memory_profiles').insert({
-      user_id: user?.id,
-      name,
-      relation,
-      gender: gender || null,
-      birth_date: birthDate || null,
-      short_description: description || null,
-    });
-
-    setIsSubmitting(false);
-
-    if (insertError) {
-      setError(insertError.message);
-    } else {
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '创建失败');
+      }
       router.push('/dashboard');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '创建失败，请稍后重试');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

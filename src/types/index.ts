@@ -19,6 +19,7 @@ export interface MemoryMaterial {
   title: string;
   content: string | null;
   file_url: string | null;
+  uploaded_file_id?: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 }

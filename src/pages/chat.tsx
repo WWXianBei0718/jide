@@ -34,15 +34,12 @@ export default function ChatPage() {
 
   const fetchProfile = useCallback(async () => {
     if (!profileId || !user) return;
-    const { data, error } = await supabase
-      .from('memory_profiles')
-      .select('name, voice_id')
-      .eq('id', profileId)
-      .single();
-    if (!error && data) {
-      setProfile(data);
-    }
-  }, [profileId, user]);
+    const token = await getToken();
+    const response = await fetch(`/api/profile?id=${encodeURIComponent(String(profileId))}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) setProfile(await response.json());
+  }, [getToken, profileId, user]);
 
   useEffect(() => {
     fetchProfile();

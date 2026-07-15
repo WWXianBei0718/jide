@@ -2,11 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
-
-interface AudioFile {
-  filename: string;
-  content: string;
-}
+import { VOICE_CONSENT_NOTICE, VOICE_RIGHTS_DECLARATION } from '@/lib/consent-policy';
 
 export default function TrainVoicePage() {
   const { user, loading, getToken } = useAuth();
@@ -14,22 +10,22 @@ export default function TrainVoicePage() {
   const { profileId } = router.query;
   
   const [profile, setProfile] = useState<{ name: string; voice_id: string | null } | null>(null);
-  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
+  const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [isTraining, setIsTraining] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [progressMessage, setProgressMessage] = useState('');
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const [voiceConsentConfirmed, setVoiceConsentConfirmed] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     if (!profileId || !user) return;
-    const { data, error } = await supabase
-      .from('memory_profiles')
-      .select('name, voice_id')
-      .eq('id', profileId)
-      .single();
-    if (!error && data) {
-      setProfile(data);
-    }
-  }, [profileId, user]);
+    const token = await getToken();
+    const response = await fetch(`/api/profile?id=${encodeURIComponent(String(profileId))}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) setProfile(await response.json());
+  }, [getToken, profileId, user]);
 
   useEffect(() => {
     fetchProfile();
@@ -39,22 +35,8 @@ export default function TrainVoicePage() {
     const files = e.target.files;
     if (!files) return;
 
-    const newFiles: AudioFile[] = [];
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        newFiles.push({
-          filename: file.name,
-          content: content.split(',')[1] || content,
-        });
-        if (newFiles.length === files.length) {
-          setAudioFiles(prev => [...prev, ...newFiles]);
-          setError('');
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    setAudioFiles((current) => [...current, ...Array.from(files)].slice(0, 10));
+    setError('');
   };
 
   const removeFile = (index: number) => {
@@ -62,24 +44,74 @@ export default function TrainVoicePage() {
   };
 
   const handleTrain = async () => {
-    if (!profileId || !user || audioFiles.length === 0) {
-      setError('请先上传音频文件');
+    if (!profileId || !user || audioFiles.length === 0 || !rightsConfirmed || !voiceConsentConfirmed) {
+      setError('请上传音频，并完成权利与声音处理确认');
       return;
     }
 
     setIsTraining(true);
     setError('');
     setSuccessMessage('');
+    setProgressMessage('');
 
     try {
       const token = await getToken();
+      if (!token) throw new Error('登录已失效');
+
+      const uploadIds: string[] = [];
+      for (const [index, file] of audioFiles.entries()) {
+        setProgressMessage(`正在安全上传第 ${index + 1}/${audioFiles.length} 个声音样本…`);
+        const requestResponse = await fetch('/api/uploads/request', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            profileId,
+            fileName: file.name,
+            mimeType: file.type,
+            fileSize: file.size,
+            purpose: 'voice_cloning',
+            rightsConfirmed,
+            voiceConsentConfirmed,
+          }),
+        });
+        const requestData = await requestResponse.json();
+        if (!requestResponse.ok) throw new Error(requestData.error || `声音样本 ${file.name} 无法上传`);
+
+        const { error: uploadError } = await supabase.storage
+          .from(requestData.bucket)
+          .uploadToSignedUrl(requestData.path, requestData.token, file, {
+            contentType: file.type,
+            cacheControl: '0',
+          });
+        if (uploadError) throw new Error(`声音样本 ${file.name} 上传失败`);
+
+        const completeResponse = await fetch('/api/uploads/complete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ uploadId: requestData.uploadId }),
+        });
+        const completeData = await completeResponse.json();
+        if (completeResponse.status === 202) {
+          throw new Error('声音样本正在等待恶意文件扫描，暂时不能用于克隆');
+        }
+        if (!completeResponse.ok) throw new Error(completeData.error || `声音样本 ${file.name} 校验失败`);
+        uploadIds.push(completeData.uploadId);
+      }
+
+      setProgressMessage('安全校验完成，正在训练声音模型…');
       const response = await fetch('/api/voice-clone', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ profileId, audioFiles }),
+        body: JSON.stringify({ profileId, uploadIds }),
       });
 
       const data = await response.json();
@@ -89,12 +121,16 @@ export default function TrainVoicePage() {
       } else {
         setSuccessMessage('语音训练成功！');
         setAudioFiles([]);
+        setRightsConfirmed(false);
+        setVoiceConsentConfirmed(false);
+        setProgressMessage('');
         fetchProfile();
       }
-    } catch {
-      setError('训练失败，请稍后重试');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '训练失败，请稍后重试');
     } finally {
       setIsTraining(false);
+      setProgressMessage('');
     }
   };
 
@@ -155,6 +191,12 @@ export default function TrainVoicePage() {
           </div>
         )}
 
+        {progressMessage && (
+          <div className="mb-6 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg">
+            {progressMessage}
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-warm-900 mb-3">音频上传</h3>
@@ -171,11 +213,11 @@ export default function TrainVoicePage() {
 
             <label className="block w-full border-2 border-dashed border-warm-200 rounded-lg p-8 text-center cursor-pointer hover:border-primary-400 transition">
               <div className="text-warm-500 mb-2">点击或拖拽上传音频文件</div>
-              <div className="text-sm text-warm-400">支持 MP3, WAV, OGG 格式</div>
+              <div className="text-sm text-warm-400">支持 MP3、WAV、OGG、M4A 格式</div>
               <input
                 type="file"
                 multiple
-                accept="audio/*"
+                accept="audio/mpeg,audio/wav,audio/x-wav,audio/ogg,audio/mp4,.mp3,.wav,.ogg,.m4a"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -188,11 +230,11 @@ export default function TrainVoicePage() {
               <div className="space-y-2">
                 {audioFiles.map((file, index) => (
                   <div
-                    key={index}
+                    key={`${file.name}-${file.size}-${file.lastModified}`}
                     className="flex items-center justify-between p-3 bg-warm-50 rounded-lg"
                   >
                     <span className="text-sm text-warm-700 truncate flex-1 mr-4">
-                      {file.filename}
+                      {file.name}
                     </span>
                     <button
                       onClick={() => removeFile(index)}
@@ -206,9 +248,20 @@ export default function TrainVoicePage() {
             </div>
           )}
 
+          <div className="mb-6 space-y-3">
+            <label className="flex items-start gap-3 text-sm text-warm-700">
+              <input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)} className="mt-1" />
+              <span>{VOICE_RIGHTS_DECLARATION}</span>
+            </label>
+            <label className="flex items-start gap-3 text-sm text-warm-700">
+              <input type="checkbox" checked={voiceConsentConfirmed} onChange={(event) => setVoiceConsentConfirmed(event.target.checked)} className="mt-1" />
+              <span>{VOICE_CONSENT_NOTICE}</span>
+            </label>
+          </div>
+
           <button
             onClick={handleTrain}
-            disabled={isTraining || audioFiles.length === 0}
+            disabled={isTraining || audioFiles.length === 0 || !rightsConfirmed || !voiceConsentConfirmed}
             className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isTraining ? '训练中...' : '开始训练语音'}

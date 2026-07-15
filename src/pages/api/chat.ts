@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { serverSupabase } from '@/lib/server-supabase';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 
 export default async function handler(
@@ -36,7 +35,7 @@ export default async function handler(
     return res.status(503).json({ error: 'OpenAI API key not configured' });
   }
 
-  const isOwner = await verifyProfileOwnership(profileId, user.id, res);
+  const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
   if (!isOwner) return;
 
   const modelMap: Record<string, string> = {
@@ -53,7 +52,22 @@ export default async function handler(
   const selectedModel = modelMap[model] || 'gpt-4o';
 
   try {
-    const { data: profile, error: profileError } = await serverSupabase
+    const { data: savedUserMessage, error: userMessageError } = await user.client
+      .from('messages')
+      .insert({
+        memory_profile_id: profileId,
+        user_id: user.id,
+        role: 'user',
+        content: message.trim(),
+      })
+      .select()
+      .single();
+
+    if (userMessageError || !savedUserMessage) {
+      return res.status(500).json({ error: 'Failed to save user message' });
+    }
+
+    const { data: profile, error: profileError } = await user.client
       .from('memory_profiles')
       .select('name, relation, gender, short_description')
       .eq('id', profileId)
@@ -64,7 +78,7 @@ export default async function handler(
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    const { data: materials, error: materialsError } = await serverSupabase
+    const { data: materials, error: materialsError } = await user.client
       .from('memory_materials')
       .select('content')
       .eq('memory_profile_id', profileId)
@@ -151,9 +165,27 @@ ${materialContext}
     }
 
     if (data.choices && data.choices[0]?.message?.content) {
+      const content = data.choices[0].message.content as string;
+      const { data: assistantMessage, error: assistantMessageError } = await user.client
+        .from('messages')
+        .insert({
+          memory_profile_id: profileId,
+          user_id: user.id,
+          role: 'assistant',
+          content,
+        })
+        .select()
+        .single();
+
+      if (assistantMessageError || !assistantMessage) {
+        return res.status(500).json({ error: 'Response generated but could not be saved' });
+      }
+
       return res.status(200).json({
-        content: data.choices[0].message.content,
+        content,
         model: selectedModel,
+        userMessage: savedUserMessage,
+        assistantMessage,
       });
     } else {
       return res.status(500).json({

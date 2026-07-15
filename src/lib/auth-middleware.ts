@@ -1,17 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { serverSupabase } from './server-supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createUserSupabase } from './user-supabase';
 
-export interface AuthenticatedRequest extends NextApiRequest {
-  user?: {
-    id: string;
-    email: string | null;
-  };
+export interface AuthenticatedUser {
+  id: string;
+  email: string | null;
+  accessToken: string;
+  client: SupabaseClient;
 }
 
 export async function authenticate(
   req: NextApiRequest,
   res: NextApiResponse
-): Promise<{ id: string; email: string | null } | null> {
+): Promise<AuthenticatedUser | null> {
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -22,7 +23,8 @@ export async function authenticate(
   const token = authHeader.replace('Bearer ', '');
 
   try {
-    const { data: { user }, error } = await serverSupabase.auth.getUser(token);
+    const client = createUserSupabase(token);
+    const { data: { user }, error } = await client.auth.getUser(token);
 
     if (error || !user) {
       res.status(401).json({ error: 'Unauthorized: Invalid token' });
@@ -32,6 +34,8 @@ export async function authenticate(
     return {
       id: user.id,
       email: user.email ?? null,
+      accessToken: token,
+      client,
     };
   } catch {
     res.status(401).json({ error: 'Unauthorized: Failed to authenticate' });
@@ -42,9 +46,10 @@ export async function authenticate(
 export async function verifyProfileOwnership(
   profileId: string,
   userId: string,
+  client: SupabaseClient,
   res: NextApiResponse
 ): Promise<boolean> {
-  const { data: profile, error } = await serverSupabase
+  const { data: profile, error } = await client
     .from('memory_profiles')
     .select('id')
     .eq('id', profileId)

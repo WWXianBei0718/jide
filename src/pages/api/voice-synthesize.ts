@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { serverSupabase } from '@/lib/server-supabase';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 
 export default async function handler(
@@ -23,7 +22,7 @@ export default async function handler(
     return res.status(400).json({ error: 'Text must be 5000 characters or fewer' });
   }
 
-  const isOwner = await verifyProfileOwnership(profileId, user.id, res);
+  const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
   if (!isOwner) return;
 
   if (!process.env.ELEVENLABS_API_KEY) {
@@ -31,7 +30,7 @@ export default async function handler(
   }
 
   try {
-    const { data: profile, error: profileError } = await serverSupabase
+    const { data: profile, error: profileError } = await user.client
       .from('memory_profiles')
       .select('voice_id')
       .eq('id', profileId)
