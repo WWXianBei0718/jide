@@ -25,7 +25,7 @@ export default async function handler(
       language: 'TypeScript',
       database: 'Supabase (PostgreSQL)',
       auth: 'Supabase Auth',
-      ai: 'OpenAI GPT-5.5 / GPT-4o / GPT-3.5',
+      ai: 'OpenAI (gpt-4o-mini)',
       voice: 'ElevenLabs',
     },
     features: [
@@ -68,8 +68,9 @@ export default async function handler(
             params: {
               profileId: '记忆体ID',
               message: '用户消息',
-              model: 'gpt-3.5/gpt-4o/gpt-5.5',
+              model: 'gpt-4o-mini',
               temperature: '0-1',
+              maxTokens: '1-1000（默认 600）',
             },
           },
         ],

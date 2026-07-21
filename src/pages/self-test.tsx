@@ -127,7 +127,7 @@ export default function SelfTestPage() {
           body: JSON.stringify({
             profileId,
             message: '你好',
-            model: 'gpt-4o',
+            model: 'gpt-4o-mini',
           }),
         });
         const data = await res.json();

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
+import { resolveChatOptions } from '@/lib/chat-policy';
 
 export default async function handler(
   req: NextApiRequest,
@@ -12,7 +13,7 @@ export default async function handler(
   const user = await authenticate(req, res);
   if (!user) return;
 
-  const { profileId, message, model = 'gpt-4o', temperature = 0.7, maxTokens = 2000 } = req.body;
+  const { profileId, message, model, temperature, maxTokens } = req.body;
 
   if (typeof profileId !== 'string' || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'Missing required fields: profileId and message' });
@@ -22,14 +23,16 @@ export default async function handler(
     return res.status(400).json({ error: 'Message must be 4000 characters or fewer' });
   }
 
-  const parsedTemperature = Number(temperature);
-  const parsedMaxTokens = Number(maxTokens);
-  if (!Number.isFinite(parsedTemperature) || parsedTemperature < 0 || parsedTemperature > 2) {
-    return res.status(400).json({ error: 'Temperature must be between 0 and 2' });
+  const chatOptions = resolveChatOptions({ model, temperature, maxTokens });
+  if (!chatOptions.ok) {
+    return res.status(400).json({ error: chatOptions.error });
   }
-  if (!Number.isInteger(parsedMaxTokens) || parsedMaxTokens < 1 || parsedMaxTokens > 4000) {
-    return res.status(400).json({ error: 'maxTokens must be an integer between 1 and 4000' });
-  }
+
+  const {
+    model: selectedModel,
+    temperature: selectedTemperature,
+    maxTokens: selectedMaxTokens,
+  } = chatOptions.options;
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(503).json({ error: 'OpenAI API key not configured' });
@@ -37,19 +40,6 @@ export default async function handler(
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
   if (!isOwner) return;
-
-  const modelMap: Record<string, string> = {
-    'gpt-3.5': 'gpt-3.5-turbo',
-    'gpt-4': 'gpt-4o',
-    'gpt-4o': 'gpt-4o',
-    'gpt-4o-mini': 'gpt-4o-mini',
-    'gpt-5': 'gpt-4o',
-    'gpt-5.5': 'gpt-4o',
-    'gpt-5.5-instant': 'gpt-4o-mini',
-    'gpt-5.5-pro': 'gpt-4o',
-  };
-
-  const selectedModel = modelMap[model] || 'gpt-4o';
 
   try {
     const { data: savedUserMessage, error: userMessageError } = await user.client
@@ -147,10 +137,10 @@ ${materialContext}
             content: message.trim(),
           },
         ],
-        temperature: parsedTemperature,
+        temperature: selectedTemperature,
         presence_penalty: 0.2,
         frequency_penalty: 0.1,
-        max_tokens: parsedMaxTokens,
+        max_tokens: selectedMaxTokens,
       }),
     });
 

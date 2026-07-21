@@ -18,12 +18,7 @@ interface TestResult {
 }
 
 const MODEL_OPTIONS = [
-  { value: 'gpt-3.5', label: 'GPT-3.5 Turbo' },
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-5', label: 'GPT-5' },
-  { value: 'gpt-5.5', label: 'GPT-5.5' },
-  { value: 'gpt-5.5-instant', label: 'GPT-5.5 Instant' },
-  { value: 'gpt-5.5-pro', label: 'GPT-5.5 Pro' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o mini（当前实际模型）' },
 ];
 
 const TEST_PROMPTS = [
@@ -39,9 +34,9 @@ export default function TestEvalPage() {
   const router = useRouter();
   const { profileId } = router.query;
 
-  const [selectedModel, setSelectedModel] = useState('gpt-5.5');
+  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(2000);
+  const [maxTokens, setMaxTokens] = useState(600);
   const [message, setMessage] = useState('');
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -148,8 +143,8 @@ export default function TestEvalPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-warm-900 mb-2">AI 模型测试与评估</h2>
-          <p className="text-warm-600">切换不同模型和参数，测试人格模拟效果并进行对比评估</p>
+          <h2 className="text-2xl font-semibold text-warm-900 mb-2">AI 回复测试与评估</h2>
+          <p className="text-warm-600">使用当前实际模型调整安全参数，测试人格模拟效果</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
@@ -198,8 +193,8 @@ export default function TestEvalPage() {
               </label>
               <input
                 type="range"
-                min="500"
-                max="4000"
+                min="100"
+                max="1000"
                 step="100"
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(parseInt(e.target.value))}
