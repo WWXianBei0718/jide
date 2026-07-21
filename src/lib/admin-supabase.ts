@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { serverRealtimeOptions } from './server-supabase-options';
 
 let adminInstance: SupabaseClient | undefined;
 
@@ -13,6 +14,7 @@ function initAdminSupabase(): SupabaseClient {
   }
 
   adminInstance = createClient(supabaseUrl, serviceRoleKey, {
+    ...serverRealtimeOptions,
     auth: {
       autoRefreshToken: false,
       persistSession: false,

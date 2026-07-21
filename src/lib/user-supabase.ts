@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { serverRealtimeOptions } from './server-supabase-options';
 
 export function createUserSupabase(accessToken: string): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -9,6 +10,7 @@ export function createUserSupabase(accessToken: string): SupabaseClient {
   }
 
   return createClient(supabaseUrl, anonKey, {
+    ...serverRealtimeOptions,
     global: {
       headers: {
         Authorization: `Bearer ${accessToken}`,
