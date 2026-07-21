@@ -104,10 +104,11 @@ export default function DashboardPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
             </div>
           ) : profiles.map((profile) => (
-            <div
+            <button
+              type="button"
               key={profile.id}
               onClick={() => router.push(`/profile/${profile.id}`)}
-              className="bg-white rounded-2xl shadow-sm p-6 cursor-pointer hover:shadow-md transition"
+              className="bg-white rounded-2xl shadow-sm p-6 cursor-pointer hover:shadow-md transition text-left"
             >
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
@@ -134,7 +135,7 @@ export default function DashboardPage() {
                 </span>
                 <span className="text-primary-600 text-sm">查看详情 →</span>
               </div>
-            </div>
+            </button>
           ))}
 
           {!isLoading && profiles.length === 0 && (

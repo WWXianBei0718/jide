@@ -28,6 +28,7 @@ const ACCEPTED_FILES = [
 export default function MaterialsPage() {
   const { user, loading, getToken } = useAuth();
   const [profile, setProfile] = useState<MemoryProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [materials, setMaterials] = useState<MaterialWithFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -56,8 +57,19 @@ export default function MaterialsPage() {
 
   const fetchProfile = useCallback(async () => {
     if (!id) return;
-    const response = await authorizedFetch(`/api/profile?id=${encodeURIComponent(String(id))}`);
-    if (response.ok) setProfile(await response.json());
+    setIsProfileLoading(true);
+    try {
+      const response = await authorizedFetch(`/api/profile?id=${encodeURIComponent(String(id))}`);
+      if (!response.ok) {
+        setProfile(null);
+        return;
+      }
+      setProfile(await response.json());
+    } catch {
+      setProfile(null);
+    } finally {
+      setIsProfileLoading(false);
+    }
   }, [authorizedFetch, id]);
 
   const fetchMaterials = useCallback(async () => {
@@ -226,8 +238,23 @@ export default function MaterialsPage() {
     setStatusMessage('');
   };
 
-  if (loading || !user) {
+  if (loading || !user || isProfileLoading) {
     return <LoadingScreen />;
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-warm-50">
+        <header className="bg-white shadow-sm">
+          <div className="max-w-4xl mx-auto px-4 py-4">
+            <button onClick={() => router.back()} className="text-warm-600">← 返回</button>
+          </div>
+        </header>
+        <main className="max-w-4xl mx-auto px-4 py-12 text-center">
+          <p className="text-warm-600">记忆体不存在或你无权访问</p>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -241,7 +268,7 @@ export default function MaterialsPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-warm-900">{profile?.name} 的记忆资料</h2>
+          <h2 className="text-xl font-semibold text-warm-900">{profile.name} 的记忆资料</h2>
           <p className="text-warm-600 text-sm mt-1">
             文字、照片、声音、视频和文档共同决定记忆体是否真正“像”。
           </p>

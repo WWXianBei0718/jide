@@ -26,13 +26,15 @@ export default function ProfileDetailPage() {
   }, [getToken, id]);
 
   useEffect(() => {
-    if (!user || !id) {
+    if (loading || !id) return;
+
+    if (!user) {
       router.push('/');
       return;
     }
 
     fetchProfile();
-  }, [user, id, router, fetchProfile]);
+  }, [user, loading, id, router, fetchProfile]);
 
   if (loading || !user || isLoading) {
     return (

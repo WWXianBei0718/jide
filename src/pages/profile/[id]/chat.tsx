@@ -6,6 +6,7 @@ import type { MemoryProfile, Message } from '@/types';
 export default function ChatPage() {
   const { user, loading, getToken } = useAuth();
   const [profile, setProfile] = useState<MemoryProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -27,8 +28,19 @@ export default function ChatPage() {
 
   const fetchProfile = useCallback(async () => {
     if (!id) return;
-    const response = await authorizedFetch(`/api/profile?id=${encodeURIComponent(String(id))}`);
-    if (response.ok) setProfile(await response.json());
+    setIsProfileLoading(true);
+    try {
+      const response = await authorizedFetch(`/api/profile?id=${encodeURIComponent(String(id))}`);
+      if (!response.ok) {
+        setProfile(null);
+        return;
+      }
+      setProfile(await response.json());
+    } catch {
+      setProfile(null);
+    } finally {
+      setIsProfileLoading(false);
+    }
   }, [authorizedFetch, id]);
 
   const fetchMessages = useCallback(async () => {
@@ -38,14 +50,16 @@ export default function ChatPage() {
   }, [authorizedFetch, id]);
 
   useEffect(() => {
-    if (!user || !id) {
+    if (loading || !id) return;
+
+    if (!user) {
       router.push('/');
       return;
     }
 
     fetchProfile();
     fetchMessages();
-  }, [user, id, router, fetchProfile, fetchMessages]);
+  }, [user, loading, id, router, fetchProfile, fetchMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -138,10 +152,25 @@ export default function ChatPage() {
     }
   };
 
-  if (loading || !user) {
+  if (loading || !user || isProfileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-warm-50">
+        <header className="bg-white shadow-sm">
+          <div className="max-w-4xl mx-auto px-4 py-4">
+            <button onClick={() => router.back()} className="text-warm-600">← 返回</button>
+          </div>
+        </header>
+        <main className="max-w-4xl mx-auto px-4 py-12 text-center">
+          <p className="text-warm-600">记忆体不存在或你无权访问</p>
+        </main>
       </div>
     );
   }
@@ -156,11 +185,11 @@ export default function ChatPage() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
               <span className="text-lg text-primary-600">
-                {profile?.name?.charAt(0) || '?'}
+                {profile.name?.charAt(0) || '?'}
               </span>
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-warm-900">{profile?.name}</h1>
+              <h1 className="text-lg font-semibold text-warm-900">{profile.name}</h1>
               <p className="text-sm text-warm-500">记忆体对话</p>
             </div>
           </div>
@@ -180,7 +209,7 @@ export default function ChatPage() {
                 </div>
                 <h3 className="text-lg font-medium text-warm-900 mb-2">开始对话</h3>
                 <p className="text-warm-500 text-sm">
-                  您可以询问关于 {profile?.name} 的问题，我会根据已上传的资料进行回答
+                  您可以询问关于 {profile.name} 的问题，我会根据已上传的资料进行回答
                 </p>
               </div>
             ) : (
