@@ -1,9 +1,11 @@
 # Supabase 部署顺序
 
-当前数据库初始化分为两步：
+数据库变更统一放在 `migrations/`，并按文件名顺序执行：
 
-1. 新项目先执行 `schema.sql` 创建基础业务表与 RLS。
-2. 再按文件名顺序执行 `migrations/` 中尚未应用的迁移。
+1. `202607150000_initial_schema.sql` 创建基础业务表、索引和 RLS。
+2. `202607150001_secure_multimedia_uploads.sql` 增加安全多媒体上传能力。
+
+新项目必须从第一条迁移开始执行。已有项目只执行尚未应用的迁移，不能重复手工拼接 SQL。每次执行后应记录迁移文件名和执行时间。
 
 `202607150001_secure_multimedia_uploads.sql` 会创建私有 `memory-quarantine`、`memory-assets` Bucket，扩展上传状态、同意证明字段和材料文件关联。未应用该迁移时，多媒体上传 API 不会工作。
 
