@@ -12,8 +12,11 @@
     "test": "npm run lint && npm run typecheck && npm run test:unit",
     "check": "npm test && npm run build",
     "eval:persona:dry": "tsx scripts/run-persona-eval.ts --dry-run",
+    "eval:persona:dry:smoke": "tsx scripts/run-persona-eval.ts --dry-run --smoke",
     "eval:persona": "tsx scripts/run-persona-eval.ts",
+    "eval:persona:smoke": "tsx scripts/run-persona-eval.ts --smoke",
     "eval:persona:resume": "tsx scripts/run-persona-eval.ts --resume",
+    "eval:persona:resume:smoke": "tsx scripts/run-persona-eval.ts --resume --smoke",
     "eval:persona:rescore": "tsx scripts/run-persona-eval.ts --rescore-only"
   },
   "dependencies": {

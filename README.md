@@ -28,10 +28,11 @@ npm run check
 ```bash
 npm run eval:persona:dry
 npm run eval:persona
+npm run eval:persona:smoke
 npm run eval:persona:resume
 ```
 
-报告写入 `evals/results/latest.md`；更换人格规则版本时，旧报告会按数据集和提示词版本自动归档。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
+`eval:persona` 默认运行完整 40 题；`eval:persona:smoke` 是开发中的可选 12 题快速检查，不能替代正式验证。报告写入 `evals/results/latest.md`；更换人格规则版本时，旧报告会按数据集、提示词版本和评测模式自动归档。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
 
 ## 环境变量
 

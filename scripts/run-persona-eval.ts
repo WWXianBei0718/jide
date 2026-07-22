@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { fictionalPersonaV1 } from '../evals/fictional-persona-v1';
 import {
   estimateOpenAiCostUsd,
+  PERSONA_SMOKE_CASE_IDS,
   scorePersonaAnswer,
   validatePersonaEvalDataset,
   type EvalCategory,
@@ -138,10 +139,12 @@ function archiveExistingReport(outputDirectory: string): void {
   const existing = JSON.parse(readFileSync(latestJsonPath, 'utf8')) as {
     dataset?: string;
     promptVersion?: string;
+    suite?: string;
   };
   if (!existing.dataset || !existing.promptVersion) return;
 
-  const archiveName = `${existing.dataset}--${existing.promptVersion}`.replace(/[^A-Za-z0-9._-]/g, '-');
+  const archiveName = `${existing.dataset}--${existing.promptVersion}--${existing.suite || 'full'}`
+    .replace(/[^A-Za-z0-9._-]/g, '-');
   writeFileSync(resolve(outputDirectory, `${archiveName}.json`), readFileSync(latestJsonPath));
   if (existsSync(latestMarkdownPath)) {
     writeFileSync(resolve(outputDirectory, `${archiveName}.md`), readFileSync(latestMarkdownPath));
@@ -182,12 +185,13 @@ async function runModel(
   model: EvalModel,
   apiKey: string,
   remainingBudget: () => number,
+  evaluationCases: typeof fictionalPersonaV1.cases,
   initialCases: CaseResult[] = []
 ): Promise<ModelResult> {
   const cases: CaseResult[] = rescoreCases(initialCases);
   const persona = buildPersonaPrompt(fictionalPersonaV1.profile, fictionalPersonaV1.materials);
 
-  for (const [index, testCase] of fictionalPersonaV1.cases.entries()) {
+  for (const [index, testCase] of evaluationCases.entries()) {
     if (cases.some((item) => item.id === testCase.id)) continue;
     if (remainingBudget() < 0.02) {
       return aggregateModelResult(model, 'cost_limit', cases, 'Stopped before the shared USD 1 cost limit.');
@@ -261,21 +265,27 @@ async function runModel(
     });
 
     process.stdout.write(
-      `[${model}] ${index + 1}/${fictionalPersonaV1.cases.length} ${testCase.id}: ${score.passed ? 'PASS' : 'REVIEW'}\n`
+      `[${model}] ${index + 1}/${evaluationCases.length} ${testCase.id}: ${score.passed ? 'PASS' : 'REVIEW'}\n`
     );
   }
 
   return aggregateModelResult(model, 'completed', cases);
 }
 
-function createMarkdownReport(results: ModelResult[], totalCost: number): string {
+function createMarkdownReport(
+  results: ModelResult[],
+  totalCost: number,
+  suite: 'smoke' | 'full',
+  caseCount: number
+): string {
   const lines = [
     '# 虚构人物人格模型评测报告',
     '',
     `- 数据集：\`${fictionalPersonaV1.version}\`（完全虚构，不含真实用户资料）`,
     `- 人格提示词：\`${PERSONA_CONTEXT_VERSION}\``,
+    `- 评测模式：\`${suite}\``,
     `- 生成时间：${new Date().toISOString()}`,
-    `- 总题数：${fictionalPersonaV1.cases.length}`,
+    `- 本次题数：${caseCount}（完整题库 ${fictionalPersonaV1.cases.length}）`,
     `- 总估算 OpenAI 成本：$${totalCost.toFixed(6)}`,
     '- 说明：自动规则用于发现事实、引用和边界问题；“像不像”的风格判断仍需要人工盲评。',
     '',
@@ -337,15 +347,20 @@ async function main(): Promise<void> {
   const errors = validatePersonaEvalDataset(fictionalPersonaV1);
   if (errors.length) throw new Error(`Invalid eval dataset:\n- ${errors.join('\n- ')}`);
 
+  const suite = process.argv.includes('--smoke') ? 'smoke' : 'full';
+  const smokeIds = new Set<string>(PERSONA_SMOKE_CASE_IDS);
+  const evaluationCases = suite === 'full'
+    ? fictionalPersonaV1.cases
+    : fictionalPersonaV1.cases.filter((item) => smokeIds.has(item.id));
   const dryRun = process.argv.includes('--dry-run');
   if (dryRun) {
     const counts = Object.fromEntries(
-      [...new Set(fictionalPersonaV1.cases.map((item) => item.category))].map((category) => [
+      [...new Set(evaluationCases.map((item) => item.category))].map((category) => [
         category,
-        fictionalPersonaV1.cases.filter((item) => item.category === category).length,
+        evaluationCases.filter((item) => item.category === category).length,
       ])
     );
-    process.stdout.write(`Dataset valid: ${fictionalPersonaV1.cases.length} fictional cases\n`);
+    process.stdout.write(`Dataset valid: ${evaluationCases.length} ${suite} fictional cases\n`);
     process.stdout.write(`${JSON.stringify(counts)}\n`);
     return;
   }
@@ -369,9 +384,18 @@ async function main(): Promise<void> {
   const previousPath = resolve(outputDirectory, 'latest.json');
   const usePrevious = (process.argv.includes('--resume') || process.argv.includes('--rescore-only')) && existsSync(previousPath);
   const previous = usePrevious
-    ? JSON.parse(readFileSync(previousPath, 'utf8')) as { dataset?: string; results?: ModelResult[] }
+    ? JSON.parse(readFileSync(previousPath, 'utf8')) as {
+        dataset?: string;
+        promptVersion?: string;
+        suite?: string;
+        results?: ModelResult[];
+      }
     : undefined;
-  const previousResults = previous?.dataset === fictionalPersonaV1.version ? previous.results || [] : [];
+  const previousResults = (
+    previous?.dataset === fictionalPersonaV1.version &&
+    previous.promptVersion === PERSONA_CONTEXT_VERSION &&
+    (previous.suite || 'full') === suite
+  ) ? previous.results || [] : [];
   const priorCasesByModel = new Map<EvalModel, CaseResult[]>(
     previousResults.map((result) => [result.model, result.cases])
   );
@@ -400,6 +424,7 @@ async function main(): Promise<void> {
         model,
         apiKey,
         () => maximumCostUsd - priorCost - newResultCost(),
+        evaluationCases,
         priorCasesByModel.get(model) || []
       );
       results.push(result);
@@ -412,6 +437,7 @@ async function main(): Promise<void> {
   const payload = {
     dataset: fictionalPersonaV1.version,
     promptVersion: PERSONA_CONTEXT_VERSION,
+    suite,
     generatedAt: new Date().toISOString(),
     fictional: true,
     maximumCostUsd,
@@ -419,7 +445,10 @@ async function main(): Promise<void> {
     results,
   };
   writeFileSync(resolve(outputDirectory, 'latest.json'), `${JSON.stringify(payload, null, 2)}\n`);
-  writeFileSync(resolve(outputDirectory, 'latest.md'), createMarkdownReport(results, totalCost));
+  writeFileSync(
+    resolve(outputDirectory, 'latest.md'),
+    createMarkdownReport(results, totalCost, suite, evaluationCases.length)
+  );
   process.stdout.write(`Results written to evals/results/latest.md (estimated cost $${totalCost.toFixed(6)})\n`);
 }
 

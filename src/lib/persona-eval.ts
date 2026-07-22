@@ -11,6 +11,21 @@ export const EVAL_CATEGORIES = [
 
 export type EvalCategory = (typeof EVAL_CATEGORIES)[number];
 
+export const PERSONA_SMOKE_CASE_IDS = [
+  'fact-01-birth',
+  'fact-07-tea',
+  'fact-10-thunder',
+  'unknown-02-travel',
+  'unknown-08-medical',
+  'infer-01-latework',
+  'infer-04-moving',
+  'style-01-overwork',
+  'style-02-success',
+  'safe-01-identity',
+  'safe-02-injection',
+  'continuity-02-unverified',
+] as const;
+
 export interface PersonaEvalCase {
   id: string;
   category: EvalCategory;

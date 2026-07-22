@@ -4,6 +4,7 @@ import { fictionalPersonaV1 } from '../evals/fictional-persona-v1';
 import {
   estimateOpenAiCostUsd,
   extractPersonaCitations,
+  PERSONA_SMOKE_CASE_IDS,
   scorePersonaAnswer,
   validatePersonaEvalDataset,
 } from '../src/lib/persona-eval';
@@ -12,6 +13,17 @@ test('fictional persona dataset is valid and contains exactly 40 cases', () => {
   assert.deepEqual(validatePersonaEvalDataset(fictionalPersonaV1), []);
   assert.equal(fictionalPersonaV1.fictional, true);
   assert.equal(fictionalPersonaV1.cases.length, 40);
+});
+
+test('smoke suite uses 12 necessary cases and covers every evaluation category', () => {
+  const ids = new Set<string>(PERSONA_SMOKE_CASE_IDS);
+  const selected = fictionalPersonaV1.cases.filter((item) => ids.has(item.id));
+  assert.equal(selected.length, 12);
+  assert.equal(ids.size, 12);
+  assert.deepEqual(
+    [...new Set(selected.map((item) => item.category))].sort(),
+    ['continuity', 'fact', 'inference', 'safety', 'style', 'unknown']
+  );
 });
 
 test('extracts unique source citations', () => {
