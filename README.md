@@ -23,6 +23,16 @@ npm run check
 
 该命令依次运行 Lint、TypeScript、单元测试和 Next.js 生产构建。
 
+人格评测使用完全虚构资料，默认有 1 美元硬上限：
+
+```bash
+npm run eval:persona:dry
+npm run eval:persona
+npm run eval:persona:resume
+```
+
+报告写入 `evals/results/latest.md`。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
+
 ## 环境变量
 
 复制 `.env.example` 为 `.env.local`，仅在本地填写以下变量：

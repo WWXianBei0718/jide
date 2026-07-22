@@ -20,6 +20,8 @@ test('builds a grounded prompt with explicit unknown and disclosure rules', () =
   assert.match(result.prompt, /真实性大于流畅、聪明和煽情/);
   assert.match(result.prompt, /这件事在现有资料里没有记录/);
   assert.match(result.prompt, /你不是林川本人/);
+  assert.match(result.prompt, /假设问题/);
+  assert.match(result.prompt, /口头禅、原话、表达样例/);
   assert.match(result.prompt, /没有可作为证据的已解析文字资料/);
   assert.deepEqual(result.sourceIds, []);
 });

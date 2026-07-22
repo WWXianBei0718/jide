@@ -10,7 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "tsx --test tests/*.test.ts",
     "test": "npm run lint && npm run typecheck && npm run test:unit",
-    "check": "npm test && npm run build"
+    "check": "npm test && npm run build",
+    "eval:persona:dry": "tsx scripts/run-persona-eval.ts --dry-run",
+    "eval:persona": "tsx scripts/run-persona-eval.ts",
+    "eval:persona:resume": "tsx scripts/run-persona-eval.ts --resume",
+    "eval:persona:rescore": "tsx scripts/run-persona-eval.ts --rescore-only"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
