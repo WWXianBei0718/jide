@@ -1,5 +1,8 @@
 # 「记得」项目 - AI 评测指南
 
+> [!WARNING]
+> **历史文档，已停止作为开发依据。** 本文保留旧模型、旧接口和旧测试方法，仅用于追溯。当前事实请先阅读 [`CURRENT_STATE.md`](./CURRENT_STATE.md)，产品验收标准请阅读 [`PRODUCT_PRINCIPLES.md`](./PRODUCT_PRINCIPLES.md)。
+
 ## 快速开始
 
 ### 访问评估 API
