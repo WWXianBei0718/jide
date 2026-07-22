@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   MATERIAL_CHUNK_CHARACTERS,
   MAX_RETRIEVAL_CHARACTERS,
+  chunkMaterialContent,
+  mergeRetrievedMaterialChunks,
   retrieveRelevantMaterialChunks,
 } from '../src/lib/memory-retrieval';
 
@@ -34,4 +36,32 @@ test('splits long material into bounded overlapping chunks', () => {
 test('falls back deterministically to recent material when there is no lexical match', () => {
   const result = retrieveRelevantMaterialChunks(materials, 'XYZ completely unrelated');
   assert.deepEqual(result.map((chunk) => chunk.id), ['recent', 'tea', 'school']);
+});
+
+test('uses the same deterministic chunks for persistence and lexical retrieval', () => {
+  const content = `${'甲'.repeat(880)}。${'乙'.repeat(500)}`;
+  const chunks = chunkMaterialContent(content);
+  const retrieved = retrieveRelevantMaterialChunks([
+    { id: 'same', title: '材料', type: 'text', content },
+  ], '甲乙');
+
+  assert.ok(chunks.length > 1);
+  assert.ok(retrieved.every((item) => chunks.includes(item.content || '')));
+});
+
+test('merges vector results before lexical fallback without duplicate chunks', () => {
+  const vector = [{
+    id: 'tea', title: '喝茶习惯', type: 'text', content: '爱喝淡茉莉花茶。',
+    chunkIndex: 0, totalChunks: 1, relevanceScore: 0.91,
+  }];
+  const lexical = [
+    ...vector,
+    {
+      id: 'school', title: '教学经历', type: 'text', content: '做了三十二年语文老师。',
+      chunkIndex: 0, totalChunks: 1, relevanceScore: 2,
+    },
+  ];
+
+  const merged = mergeRetrievedMaterialChunks(vector, lexical);
+  assert.deepEqual(merged.map((chunk) => chunk.id), ['tea', 'school']);
 });

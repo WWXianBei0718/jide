@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
+import { indexMemoryMaterial } from '@/lib/memory-indexing';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const user = await authenticate(req, res);
@@ -71,7 +72,16 @@ async function createTextMaterial(req: NextApiRequest, res: NextApiResponse, use
     .single();
 
   if (error || !data) return res.status(500).json({ error: 'Failed to create material' });
-  return res.status(201).json(data);
+
+  const indexing = await indexMemoryMaterial({
+    materialId: data.id,
+    profileId,
+    sourceType: 'text',
+    content: data.content,
+    metadata: data.metadata,
+  });
+
+  return res.status(201).json({ ...data, indexing });
 }
 
 async function deleteMaterial(req: NextApiRequest, res: NextApiResponse, user: User) {

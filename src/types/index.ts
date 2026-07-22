@@ -29,9 +29,13 @@ export interface MemoryChunk {
   memory_profile_id: string;
   material_id: string;
   chunk_text: string;
-  embedding: number[];
-  source_type: 'text' | 'image' | 'audio' | 'video';
+  embedding: number[] | string | null;
+  source_type: 'text' | 'image' | 'audio' | 'video' | 'document';
+  chunk_index: number;
+  embedding_model: string;
+  content_hash: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Conversation {

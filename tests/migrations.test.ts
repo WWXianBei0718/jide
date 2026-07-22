@@ -13,7 +13,22 @@ test('database migrations include the initial schema before feature migrations',
     '202607150001_secure_multimedia_uploads.sql',
     '202607150002_harden_relationship_rls.sql',
     '202607220000_add_chat_rate_limits.sql',
+    '202607220001_secure_memory_chunks.sql',
   ]);
+});
+
+test('memory chunk migration prevents client writes and verifies vector-search ownership', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607220001_secure_memory_chunks.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /foreign key \(material_id, memory_profile_id\)/);
+  assert.match(sql, /drop policy if exists "users can create chunks for their own profiles"/);
+  assert.match(sql, /revoke insert, update, delete on public\.memory_chunks from anon, authenticated/);
+  assert.match(sql, /security definer/);
+  assert.match(sql, /profiles\.user_id = auth\.uid\(\)/);
+  assert.match(sql, /grant execute on function public\.match_memory_chunks/);
 });
 
 test('chat quota migration enforces authenticated atomic limits without client table access', () => {

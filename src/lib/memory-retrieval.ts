@@ -1,6 +1,6 @@
 import type { PersonaMaterialContext } from './persona-context';
 
-export const MEMORY_RETRIEVAL_VERSION = 'lexical-chunks-v1';
+export const MEMORY_RETRIEVAL_VERSION = 'hybrid-vector-lexical-v1';
 export const MAX_RETRIEVAL_MATERIALS = 100;
 export const MAX_RETRIEVAL_CHUNKS = 10;
 export const MAX_RETRIEVAL_CHARACTERS = 8000;
@@ -15,7 +15,7 @@ export interface RetrievedMaterialChunk extends PersonaMaterialContext {
 
 const CJK_STOP_CHARACTERS = new Set('的是了和在有我你他她它这那就都也很与及或把被让给而但还会能要去来过着吗呢吧啊呀哦嗯'.split(''));
 
-function splitContent(content: string): string[] {
+export function chunkMaterialContent(content: string): string[] {
   const normalized = content.replace(/\r\n/g, '\n').trim();
   if (normalized.length <= MATERIAL_CHUNK_CHARACTERS) return normalized ? [normalized] : [];
 
@@ -86,7 +86,7 @@ export function retrieveRelevantMaterialChunks(
 ): RetrievedMaterialChunk[] {
   const queryTokens = tokenize(query);
   const candidates = materials.slice(0, MAX_RETRIEVAL_MATERIALS).flatMap((material, materialIndex) => {
-    const chunks = splitContent(material.content || '');
+    const chunks = chunkMaterialContent(material.content || '');
     return chunks.map((content, index) => ({
       ...material,
       title: chunks.length > 1 ? `${material.title}（片段 ${index + 1}/${chunks.length}）` : material.title,
@@ -119,6 +119,28 @@ export function retrieveRelevantMaterialChunks(
       totalChunks: candidate.totalChunks,
       relevanceScore: candidate.relevanceScore,
     });
+    usedCharacters += contentLength;
+  }
+  return selected;
+}
+
+export function mergeRetrievedMaterialChunks(
+  vectorChunks: RetrievedMaterialChunk[],
+  lexicalChunks: RetrievedMaterialChunk[]
+): RetrievedMaterialChunk[] {
+  const selected: RetrievedMaterialChunk[] = [];
+  const seen = new Set<string>();
+  let usedCharacters = 0;
+
+  for (const chunk of [...vectorChunks, ...lexicalChunks]) {
+    if (selected.length >= MAX_RETRIEVAL_CHUNKS) break;
+    const key = `${chunk.id}:${chunk.chunkIndex}:${chunk.content}`;
+    const contentLength = chunk.content?.length || 0;
+    if (seen.has(key) || !contentLength || usedCharacters + contentLength > MAX_RETRIEVAL_CHARACTERS) {
+      continue;
+    }
+    seen.add(key);
+    selected.push(chunk);
     usedCharacters += contentLength;
   }
   return selected;
