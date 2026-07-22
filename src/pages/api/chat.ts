@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { resolveChatOptions } from '@/lib/chat-policy';
+import { consumeChatQuota } from '@/lib/chat-rate-limit';
 
 export default async function handler(
   req: NextApiRequest,
@@ -40,6 +41,21 @@ export default async function handler(
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
   if (!isOwner) return;
+
+  const quota = await consumeChatQuota(user.client);
+  if (quota.status === 'unavailable') {
+    return res.status(503).json({ error: 'Chat usage protection is temporarily unavailable' });
+  }
+  if (quota.status === 'limited') {
+    res.setHeader('Retry-After', quota.retryAfterSeconds.toString());
+    return res.status(429).json({
+      error: quota.scope === 'minute'
+        ? 'Chat rate limit reached. Please wait before trying again.'
+        : 'Daily chat limit reached. Please try again later.',
+      limit: quota.scope,
+      retryAfterSeconds: quota.retryAfterSeconds,
+    });
+  }
 
   try {
     const { data: savedUserMessage, error: userMessageError } = await user.client

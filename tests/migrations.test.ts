@@ -12,7 +12,23 @@ test('database migrations include the initial schema before feature migrations',
     '202607150000_initial_schema.sql',
     '202607150001_secure_multimedia_uploads.sql',
     '202607150002_harden_relationship_rls.sql',
+    '202607220000_add_chat_rate_limits.sql',
   ]);
+});
+
+test('chat quota migration enforces authenticated atomic limits without client table access', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607220000_add_chat_rate_limits.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /current_user_id uuid := auth\.uid\(\)/);
+  assert.match(sql, /pg_advisory_xact_lock/);
+  assert.match(sql, /minute_count >= 10/);
+  assert.match(sql, /day_count >= 100/);
+  assert.match(sql, /enable row level security/);
+  assert.match(sql, /revoke all on table public\.chat_usage_events from anon, authenticated/);
+  assert.match(sql, /grant execute on function public\.consume_chat_quota\(\) to authenticated/);
 });
 
 test('initial schema enables pgvector before declaring vector columns', () => {
