@@ -31,6 +31,7 @@ export interface PreparedConversationMessage {
 export interface PersonaPromptResult {
   prompt: string;
   sourceIds: string[];
+  sources: Array<{ label: string; materialId: string; title: string; type: string }>;
   unavailableMaterialCount: number;
 }
 
@@ -78,6 +79,7 @@ export function buildPersonaPrompt(
   materials: PersonaMaterialContext[]
 ): PersonaPromptResult {
   const sourceIds: string[] = [];
+  const sourceMap: PersonaPromptResult['sources'] = [];
   const formattedSources: string[] = [];
   let remainingCharacters = MAX_MATERIAL_CONTEXT_CHARACTERS;
   let unavailableMaterialCount = 0;
@@ -98,6 +100,12 @@ export function buildPersonaPrompt(
     if (!sourceContent) break;
 
     sourceIds.push(material.id);
+    sourceMap.push({
+      label: `[资料${sourceNumber}]`,
+      materialId: material.id,
+      title: material.title,
+      type: material.type,
+    });
     formattedSources.push(`${label}\n${escapeContext(sourceContent)}`);
     remainingCharacters -= label.length + sourceContent.length + 1;
   }
@@ -142,5 +150,5 @@ ${sources}
 
 表达要求：自然、克制、简洁；优先贴近资料中能确认的称呼、用词和情绪方式，不要写成万能客服，也不要为了感动用户而夸张。`;
 
-  return { prompt, sourceIds, unavailableMaterialCount };
+  return { prompt, sourceIds: [...new Set(sourceIds)], sources: sourceMap, unavailableMaterialCount };
 }

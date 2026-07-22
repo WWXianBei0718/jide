@@ -31,7 +31,7 @@ npm run eval:persona
 npm run eval:persona:resume
 ```
 
-报告写入 `evals/results/latest.md`。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
+报告写入 `evals/results/latest.md`；更换人格规则版本时，旧报告会按数据集和提示词版本自动归档。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
 
 ## 环境变量
 

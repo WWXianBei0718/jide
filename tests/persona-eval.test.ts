@@ -39,3 +39,8 @@ test('estimates token cost from per-million pricing', () => {
   assert.equal(estimateOpenAiCostUsd(1_000_000, 1_000_000, 0.75, 4.5), 5.25);
   assert.equal(estimateOpenAiCostUsd(10_000, 1_000, 0.15, 0.6), 0.0021);
 });
+
+test('current prompt version remains distinct from the v1 evaluation baseline', async () => {
+  const { PERSONA_CONTEXT_VERSION } = await import('../src/lib/persona-context');
+  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v2');
+});

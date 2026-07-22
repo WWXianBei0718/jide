@@ -130,6 +130,24 @@ function sanitizeOpenAiError(error: string | undefined): string | undefined {
   return error?.replace(/organization org-[A-Za-z0-9_-]+/g, 'organization [redacted]');
 }
 
+function archiveExistingReport(outputDirectory: string): void {
+  const latestJsonPath = resolve(outputDirectory, 'latest.json');
+  const latestMarkdownPath = resolve(outputDirectory, 'latest.md');
+  if (!existsSync(latestJsonPath)) return;
+
+  const existing = JSON.parse(readFileSync(latestJsonPath, 'utf8')) as {
+    dataset?: string;
+    promptVersion?: string;
+  };
+  if (!existing.dataset || !existing.promptVersion) return;
+
+  const archiveName = `${existing.dataset}--${existing.promptVersion}`.replace(/[^A-Za-z0-9._-]/g, '-');
+  writeFileSync(resolve(outputDirectory, `${archiveName}.json`), readFileSync(latestJsonPath));
+  if (existsSync(latestMarkdownPath)) {
+    writeFileSync(resolve(outputDirectory, `${archiveName}.md`), readFileSync(latestMarkdownPath));
+  }
+}
+
 function aggregateModelResult(model: EvalModel, status: ModelResult['status'], cases: CaseResult[], error?: string): ModelResult {
   const categoryPassRates: Partial<Record<EvalCategory, number>> = {};
   for (const category of new Set(cases.map((item) => item.category))) {
@@ -200,8 +218,9 @@ async function runModel(
         Authorization: `Bearer ${apiKey}`,
       }, requestBody);
       data = (await response.json()) as typeof data;
-      const isRateLimit = response.status === 429 && /rate limit/i.test(data.error?.message || '');
-      if (!isRateLimit || attempt === 7) break;
+      const errorMessage = data.error?.message || '';
+      const isMinuteRateLimit = response.status === 429 && /(?:requests per min|RPM)/i.test(errorMessage);
+      if (!isMinuteRateLimit || attempt === 7) break;
       const waitMilliseconds = 55_000;
       process.stdout.write(`[${model}] rate limited; waiting ${Math.ceil(waitMilliseconds / 1000)}s\n`);
       await wait(waitMilliseconds);
@@ -388,6 +407,7 @@ async function main(): Promise<void> {
   }
 
   mkdirSync(outputDirectory, { recursive: true });
+  archiveExistingReport(outputDirectory);
   const totalCost = results.reduce((sum, result) => sum + result.estimatedCostUsd, 0);
   const payload = {
     dataset: fictionalPersonaV1.version,

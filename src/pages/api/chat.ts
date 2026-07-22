@@ -3,6 +3,11 @@ import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { resolveChatOptions } from '@/lib/chat-policy';
 import { consumeChatQuota } from '@/lib/chat-rate-limit';
 import {
+  MAX_RETRIEVAL_MATERIALS,
+  MEMORY_RETRIEVAL_VERSION,
+  retrieveRelevantMaterialChunks,
+} from '@/lib/memory-retrieval';
+import {
   buildPersonaPrompt,
   PERSONA_CONTEXT_VERSION,
   prepareConversationContext,
@@ -93,8 +98,9 @@ export default async function handler(
       .from('memory_materials')
       .select('id, title, type, content')
       .eq('memory_profile_id', profileId)
+      .not('content', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(MAX_RETRIEVAL_MATERIALS);
 
     if (materialsError) {
       console.error('Failed to fetch profile materials:', materialsError);
@@ -111,7 +117,8 @@ export default async function handler(
       console.error('Failed to fetch recent conversation:', recentMessagesError);
     }
 
-    const personaContext = buildPersonaPrompt(profile, materials || []);
+    const retrievedMaterials = retrieveRelevantMaterialChunks(materials || [], message.trim());
+    const personaContext = buildPersonaPrompt(profile, retrievedMaterials);
     const conversationContext = prepareConversationContext(
       recentMessages && recentMessages.length > 0
         ? [...recentMessages].reverse()
@@ -161,7 +168,11 @@ export default async function handler(
           content,
           retrieved_context: JSON.stringify({
             version: PERSONA_CONTEXT_VERSION,
+            retrievalVersion: MEMORY_RETRIEVAL_VERSION,
             materialIds: personaContext.sourceIds,
+            sources: personaContext.sources,
+            candidateMaterialCount: materials?.length || 0,
+            retrievedChunkCount: retrievedMaterials.length,
             unavailableMaterialCount: personaContext.unavailableMaterialCount,
             conversationMessageCount: conversationContext.length,
           }),
