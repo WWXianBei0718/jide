@@ -65,7 +65,7 @@ async function getMaterials(req: NextApiRequest, res: NextApiResponse, user: Use
 
   const { data, error } = await user.client
     .from('memory_materials')
-    .select('*, uploaded_files(id, file_name, file_type, file_size, status)')
+    .select('id, type, title, content, metadata, created_at, uploaded_files(id, file_name, file_type, file_size, status)')
     .eq('memory_profile_id', profileId)
     .order('created_at', { ascending: false });
 
@@ -100,7 +100,7 @@ async function createTextMaterial(req: NextApiRequest, res: NextApiResponse, use
       title: title.trim(),
       content: content.trim(),
     })
-    .select()
+    .select('id, memory_profile_id, type, title, content, metadata, created_at')
     .single();
 
   if (error || !data) return res.status(500).json({ error: 'Failed to create material' });
@@ -113,7 +113,15 @@ async function createTextMaterial(req: NextApiRequest, res: NextApiResponse, use
     metadata: data.metadata,
   });
 
-  return res.status(201).json({ ...data, indexing });
+  return res.status(201).json({
+    id: data.id,
+    type: data.type,
+    title: data.title,
+    content: data.content,
+    metadata: data.metadata,
+    created_at: data.created_at,
+    indexing,
+  });
 }
 
 async function deleteMaterial(req: NextApiRequest, res: NextApiResponse, user: User) {

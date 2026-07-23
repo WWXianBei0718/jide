@@ -59,13 +59,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const { data: material, error: materialError } = await user.client
       .from('memory_materials')
-      .select('*')
+      .select('id')
       .eq('uploaded_file_id', upload.id)
       .single();
     if (materialError || !material) {
       return res.status(409).json({ error: 'Upload is ready but its material record is unavailable' });
     }
-    return res.status(200).json({ status: 'ready', material });
+    return res.status(200).json({ status: 'ready', materialId: material.id, uploadId: upload.id });
   }
 
   if (upload.purpose === 'voice_cloning' && !voiceCloningEnabled()) {
@@ -150,9 +150,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     release_scope: 'development_only',
   };
 
-  let material = null;
+  let materialId: string | null = null;
   if (upload.purpose === 'material') {
-    const { data: materialId, error: finalizeError } = await adminSupabase.rpc(
+    const { data: finalizedMaterialId, error: finalizeError } = await adminSupabase.rpc(
       'finalize_material_upload',
       {
         p_upload_id: upload.id,
@@ -162,21 +162,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
-    if (finalizeError || !materialId) {
+    if (finalizeError || !finalizedMaterialId) {
       await adminSupabase.storage.from('memory-assets').remove([assetPath]);
       await rejectUpload(upload, 'material_finalize_failed');
       return res.status(500).json({ error: 'Failed to finalize material upload' });
     }
-
-    const { data: createdMaterial, error: materialError } = await user.client
-      .from('memory_materials')
-      .select('*')
-      .eq('id', materialId)
-      .single();
-    if (materialError || !createdMaterial) {
-      return res.status(500).json({ error: 'Material was finalized but could not be returned' });
-    }
-    material = createdMaterial;
+    materialId = finalizedMaterialId;
   } else {
     const { data: readyUpload, error: readyError } = await adminSupabase
       .from('uploaded_files')
@@ -202,7 +193,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   await adminSupabase.storage.from('memory-quarantine').remove([upload.quarantine_path]);
-  return res.status(201).json({ status: 'ready', material, uploadId: upload.id });
+  return res.status(201).json({ status: 'ready', materialId, uploadId: upload.id });
 }
 
 async function rejectUpload(upload: UploadRecord, reason: string) {
