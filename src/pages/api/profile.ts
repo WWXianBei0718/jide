@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership, type AuthenticatedUser } from '@/lib/auth-middleware';
+import { adminSupabase } from '@/lib/admin-supabase';
+import { hasRecentAuthentication, storageDeletionTargets, type DeletableUpload } from '@/lib/account-deletion';
+import { deleteElevenLabsVoices, deleteStorageTargets } from '@/lib/external-resource-deletion';
 
 export default async function handler(
   req: NextApiRequest,
@@ -151,7 +154,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, user: Authen
 }
 
 async function handleDelete(req: NextApiRequest, res: NextApiResponse, user: AuthenticatedUser) {
-  const { id } = req.body;
+  const { id, confirmation } = req.body;
 
   if (typeof id !== 'string' || !id) {
     return res.status(400).json({ error: 'Profile ID is required' });
@@ -161,6 +164,53 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse, user: Aut
   if (!isOwner) return;
 
   try {
+    const { data: profile, error: profileError } = await user.client
+      .from('memory_profiles')
+      .select('id, name, voice_id')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single();
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    if (confirmation !== profile.name) {
+      return res.status(400).json({ error: '请输入人物姓名确认删除' });
+    }
+    if (!hasRecentAuthentication(user.accessToken)) {
+      return res.status(401).json({ error: '请重新输入密码验证身份后再删除人物' });
+    }
+
+    const { data: uploads, error: uploadsError } = await adminSupabase
+      .from('uploaded_files')
+      .select('storage_bucket, file_path, quarantine_path, status')
+      .eq('user_id', user.id)
+      .eq('memory_profile_id', id);
+    if (uploadsError) {
+      return res.status(500).json({ error: '无法盘点人物私有文件，删除已中止' });
+    }
+
+    const voiceDeletion = await deleteElevenLabsVoices(
+      typeof profile.voice_id === 'string' ? [profile.voice_id] : [],
+      process.env.ELEVENLABS_API_KEY
+    );
+    if (!voiceDeletion.ok) {
+      return res.status(voiceDeletion.reason === 'not_configured' ? 503 : 502).json({
+        error: voiceDeletion.reason === 'not_configured'
+          ? '声音供应商删除服务未配置，人物删除已中止'
+          : '声音供应商尚未确认删除声音模型，人物删除已中止',
+      });
+    }
+
+    const storageDeletion = await deleteStorageTargets(
+      storageDeletionTargets((uploads || []) as DeletableUpload[]),
+      (bucket, paths) => adminSupabase.storage.from(bucket).remove(paths)
+    );
+    if (!storageDeletion.ok) {
+      return res.status(502).json({
+        error: '人物私有文件尚未全部删除，人物删除已中止，可稍后安全重试',
+      });
+    }
+
     const { error } = await user.client
       .from('memory_profiles')
       .delete()
@@ -168,10 +218,16 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse, user: Aut
       .eq('user_id', user.id);
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({
+        error: '外部资源已清理，但人物数据库删除失败，请稍后重试',
+      });
     }
 
-    return res.status(200).json({ message: 'Profile deleted successfully' });
+    return res.status(200).json({
+      message: '人物、私有资料和声音模型已删除',
+      deletedVoiceCount: voiceDeletion.deletedCount,
+      deletedFileCount: storageDeletion.deletedCount,
+    });
   } catch {
     return res.status(500).json({ error: 'Failed to delete profile' });
   }

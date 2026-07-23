@@ -7,6 +7,10 @@ import {
   storageDeletionTargets,
   type DeletableUpload,
 } from '@/lib/account-deletion';
+import {
+  deleteElevenLabsVoices,
+  deleteStorageTargets,
+} from '@/lib/external-resource-deletion';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'DELETE') {
@@ -43,44 +47,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .map((profile) => profile.voice_id)
         .filter((voiceId): voiceId is string => typeof voiceId === 'string' && Boolean(voiceId))
     )];
-    if (voiceIds.length > 0 && !process.env.ELEVENLABS_API_KEY) {
-      return res.status(503).json({ error: '声音供应商删除服务未配置，账号删除已中止' });
-    }
-
-    for (const voiceId of voiceIds) {
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}`,
-        {
-          method: 'DELETE',
-          headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY || '' },
-          signal: AbortSignal.timeout(30_000),
-        }
-      );
-      if (!response.ok && response.status !== 404) {
-        return res.status(502).json({
-          error: '声音供应商尚未确认删除全部声音模型，账号删除已中止',
-        });
-      }
+    const voiceDeletion = await deleteElevenLabsVoices(
+      voiceIds,
+      process.env.ELEVENLABS_API_KEY
+    );
+    if (!voiceDeletion.ok) {
+      return res.status(voiceDeletion.reason === 'not_configured' ? 503 : 502).json({
+        error: voiceDeletion.reason === 'not_configured'
+          ? '声音供应商删除服务未配置，账号删除已中止'
+          : '声音供应商尚未确认删除全部声音模型，账号删除已中止',
+      });
     }
 
     const storageTargets = storageDeletionTargets((uploads || []) as DeletableUpload[]);
-    const targetsByBucket = new Map<string, string[]>();
-    for (const target of storageTargets) {
-      const paths = targetsByBucket.get(target.bucket) || [];
-      paths.push(target.path);
-      targetsByBucket.set(target.bucket, paths);
-    }
-    for (const [bucket, paths] of targetsByBucket) {
-      for (let index = 0; index < paths.length; index += 100) {
-        const { error } = await adminSupabase.storage
-          .from(bucket)
-          .remove(paths.slice(index, index + 100));
-        if (error) {
-          return res.status(502).json({
-            error: '私有文件尚未全部删除，账号删除已中止，可稍后安全重试',
-          });
-        }
-      }
+    const storageDeletion = await deleteStorageTargets(
+      storageTargets,
+      (bucket, paths) => adminSupabase.storage.from(bucket).remove(paths)
+    );
+    if (!storageDeletion.ok) {
+      return res.status(502).json({
+        error: '私有文件尚未全部删除，账号删除已中止，可稍后安全重试',
+      });
     }
 
     const tableDeletes = [
@@ -110,8 +97,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       message: '账号、私有资料和供应商声音资源已删除',
-      deletedVoiceCount: voiceIds.length,
-      deletedFileCount: storageTargets.length,
+      deletedVoiceCount: voiceDeletion.deletedCount,
+      deletedFileCount: storageDeletion.deletedCount,
     });
   } catch (error) {
     console.error('Account deletion failed:', error instanceof Error ? error.message : 'unknown');

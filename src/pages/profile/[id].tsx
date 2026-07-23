@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
+import { supabase } from '@/lib/supabase';
 import type { MemoryProfile } from '@/types';
 
 export default function ProfileDetailPage() {
   const { user, loading, getToken } = useAuth();
   const [profile, setProfile] = useState<MemoryProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
   const { id } = router.query;
 
@@ -35,6 +41,48 @@ export default function ProfileDetailPage() {
 
     fetchProfile();
   }, [user, loading, id, router, fetchProfile]);
+
+  const handleDeleteProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const currentProfile = profile;
+    const email = user?.email;
+    if (!currentProfile || !email || deleteConfirmation !== currentProfile.name) return;
+    if (!window.confirm(`确定永久删除“${currentProfile.name}”及其所有资料和声音模型吗？`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email,
+        password: deletePassword,
+      });
+      if (reauthError) throw new Error('密码验证失败，人物没有被删除');
+      const token = await getToken();
+      if (!token) throw new Error('重新验证失败，人物没有被删除');
+
+      const response = await fetch('/api/profile', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: currentProfile.id,
+          confirmation: deleteConfirmation,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '人物删除未完成');
+      await router.replace('/dashboard');
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : '人物删除未完成');
+    } finally {
+      setIsDeleting(false);
+      setDeletePassword('');
+    }
+  };
 
   if (loading || !user || isLoading) {
     return (
@@ -122,6 +170,52 @@ export default function ProfileDetailPage() {
               >
                 {profile.voice_id ? '更新声音' : '训练声音'}
               </button>
+            </div>
+
+            <div className="border-t border-red-100 mt-8 pt-6">
+              <button
+                type="button"
+                onClick={() => setShowDelete((visible) => !visible)}
+                className="text-sm text-red-600 hover:text-red-700"
+              >
+                {showDelete ? '取消删除人物' : '永久删除这个人物'}
+              </button>
+              {showDelete && (
+                <form onSubmit={handleDeleteProfile} className="mt-4 space-y-3">
+                  <p className="text-sm text-red-700">
+                    将同时删除人物资料、聊天、私有文件和已绑定的声音模型，无法撤销。
+                  </p>
+                  <input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(event) => setDeletePassword(event.target.value)}
+                    placeholder="重新输入登录密码"
+                    autoComplete="current-password"
+                    className="w-full px-3 py-2 border border-red-200 rounded-lg"
+                    required
+                  />
+                  <input
+                    type="text"
+                    value={deleteConfirmation}
+                    onChange={(event) => setDeleteConfirmation(event.target.value)}
+                    placeholder={`输入人物姓名“${profile.name}”`}
+                    className="w-full px-3 py-2 border border-red-200 rounded-lg"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      isDeleting ||
+                      !deletePassword ||
+                      deleteConfirmation !== profile.name
+                    }
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {isDeleting ? '正在安全删除…' : '确认永久删除人物'}
+                  </button>
+                  {deleteError && <p className="text-sm text-red-700" role="alert">{deleteError}</p>}
+                </form>
+              )}
             </div>
           </div>
         </div>

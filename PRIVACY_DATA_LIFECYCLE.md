@@ -7,7 +7,7 @@
 | 数据 | 位置 | 当前导出 | 当前删除 |
 |---|---|---|---|
 | 账号与邮箱 | Supabase Auth | 结构化导出包含账号标识和邮箱 | 代码已接入，尚待专用账号端到端验收 |
-| 人物档案 | PostgreSQL `memory_profiles` | 已包含 | 删除人物接口存在 |
+| 人物档案 | PostgreSQL `memory_profiles` | 已包含 | 删除人物会先清理供应商声音和私有文件；尚待专用账号端到端验收 |
 | 文字与材料元数据 | `memory_materials` | 已包含 | 删除材料接口存在 |
 | 记忆切片与索引状态 | `memory_chunks` | 包含可读切片，不包含向量数字 | 随材料数据库级联删除 |
 | 聊天记录 | `messages` / `conversations` | 已包含 | 随人物级联删除 |

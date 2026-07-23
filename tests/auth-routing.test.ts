@@ -46,6 +46,17 @@ test('account deletion requires authentication, recent verification, and explici
   assert.match(dashboard, /永久删除账号/);
 });
 
+test('profile deletion requires reauthentication and cleans external resources before database deletion', () => {
+  const detail = readPage('profile', '[id].tsx');
+  const profileApi = readPage('api', 'profile.ts');
+
+  assert.match(detail, /supabase\.auth\.signInWithPassword/);
+  assert.match(detail, /永久删除这个人物/);
+  assert.match(profileApi, /deleteElevenLabsVoices/);
+  assert.match(profileApi, /deleteStorageTargets/);
+  assert.match(profileApi, /confirmation !== profile\.name/);
+});
+
 test('materials page hides controls when the profile is unavailable', () => {
   const materials = readPage('profile', '[id]', 'materials.tsx');
 
