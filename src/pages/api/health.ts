@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import { adminSupabase } from '@/lib/admin-supabase';
+import { inspectServerEnvironment } from '@/lib/environment';
 
 export default async function handler(
   req: NextApiRequest,
@@ -10,23 +11,35 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  res.setHeader('Cache-Control', 'no-store');
+
+  if (!inspectServerEnvironment().ready) {
+    return res.status(503).json({
+      status: 'unavailable',
+      database: 'not_checked',
+    });
+  }
+
   try {
-    const { data, error } = await supabase.from('memory_profiles').select('id').limit(1);
-    
+    const { error } = await adminSupabase
+      .from('memory_profiles')
+      .select('id', { count: 'exact', head: true });
+
     if (error) {
-      return res.status(500).json({ status: 'error', message: error.message });
+      return res.status(503).json({
+        status: 'unavailable',
+        database: 'unavailable',
+      });
     }
-    
-    return res.status(200).json({ 
-      status: 'healthy', 
+
+    return res.status(200).json({
+      status: 'ready',
       database: 'connected',
-      table_exists: true,
-      sample_data: data?.length > 0
     });
   } catch {
-    return res.status(500).json({ 
-      status: 'error', 
-      message: 'Database connection failed' 
+    return res.status(503).json({
+      status: 'unavailable',
+      database: 'unavailable',
     });
   }
 }
