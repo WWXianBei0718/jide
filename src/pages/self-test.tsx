@@ -145,9 +145,9 @@ export default function SelfTestPage() {
       },
     },
     {
-      id: 'elevenlabs-api',
-      name: 'ElevenLabs API',
-      category: 'AI服务',
+      id: 'voice-status',
+      name: '声音就绪状态',
+      category: '业务功能',
       run: async () => {
         const token = await getToken();
         const res = await fetch('/api/voices', {
@@ -155,9 +155,9 @@ export default function SelfTestPage() {
             'Authorization': `Bearer ${token}`,
           },
         });
-        if (!res.ok) throw new Error('ElevenLabs API 调用失败');
+        if (!res.ok) throw new Error('声音状态读取失败');
         const data = await res.json();
-        return `可用语音数: ${data.count}`;
+        return `已就绪人物数: ${data.count}`;
       },
     },
     {

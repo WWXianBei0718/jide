@@ -132,7 +132,7 @@ export default async function handler(
     ],
     api_endpoints: [
       { method: 'GET', path: '/api/health', description: '健康检查' },
-      { method: 'GET', path: '/api/voices', description: 'ElevenLabs语音列表' },
+      { method: 'GET', path: '/api/voices', description: '当前用户人物的声音就绪状态' },
       { method: 'POST', path: '/api/profile', description: '创建/更新记忆体' },
       { method: 'GET', path: '/api/profile', description: '获取记忆体' },
       { method: 'DELETE', path: '/api/profile', description: '删除记忆体' },
@@ -206,7 +206,7 @@ export default async function handler(
       base_url: 'http://localhost:3000',
       test_order: [
         '1. 访问 /api/health 检查数据库连接',
-        '2. 访问 /api/voices 检查 ElevenLabs API',
+        '2. 访问 /api/voices 检查当前账号的声音就绪状态',
         '3. 创建测试用户（使用登录页）',
         '4. 创建测试记忆体（POST /api/profile）',
         '5. 测试聊天功能（POST /api/chat）',
