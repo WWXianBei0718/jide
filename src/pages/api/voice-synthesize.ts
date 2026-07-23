@@ -103,7 +103,10 @@ export default async function handler(
     res.setHeader('Content-Disposition', 'attachment; filename="speech.mp3"');
     res.send(Buffer.from(audioBuffer));
   } catch (error) {
-    console.error('Voice synthesis error:', error);
+    console.error(
+      'Voice synthesis request failed:',
+      error instanceof Error ? error.name : 'unknown'
+    );
     return res.status(500).json({ error: 'Failed to synthesize speech' });
   }
 }

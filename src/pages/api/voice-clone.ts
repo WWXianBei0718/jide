@@ -197,7 +197,10 @@ export default async function handler(
       message: cleanupFailed ? '语音克隆创建成功，原始样本已封锁并等待后台重试清理' : '语音克隆创建成功',
     });
   } catch (error) {
-    console.error('Voice clone error:', error);
+    console.error(
+      'Voice clone request failed:',
+      error instanceof Error ? error.name : 'unknown'
+    );
     return res.status(500).json({ error: 'Failed to create voice clone' });
   }
 }

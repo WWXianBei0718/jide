@@ -45,4 +45,5 @@ npm run eval:persona:resume
 - `OPENAI_API_KEY`
 - `ELEVENLABS_API_KEY`
 
-不得提交 `.env.local`，不得在前端或日志中输出服务端密钥。
+不得提交 `.env.local`，不得在前端或日志中输出服务端密钥。macOS/Linux 创建文件后应执行
+`chmod 600 .env.local`，确保只有当前系统用户可以读取和修改真实密钥；本地测试会自动检查这一权限。

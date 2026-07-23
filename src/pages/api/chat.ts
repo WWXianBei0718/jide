@@ -158,9 +158,11 @@ export default async function handler(
     const data = response.data;
     
     if (!response.ok) {
-      console.error('OpenAI API error:', data);
-      return res.status(response.status).json({ 
-        error: data.error?.message || 'Failed to generate response',
+      console.error('OpenAI request failed with status:', response.status);
+      return res.status(response.status).json({
+        error: response.status === 429
+          ? 'AI 服务当前额度或请求频率受限，请稍后重试'
+          : 'AI 服务暂时不可用，请稍后重试',
         model: selectedModel,
       });
     }
@@ -208,7 +210,10 @@ export default async function handler(
       });
     }
   } catch (error) {
-    console.error('Error calling OpenAI:', error);
+    console.error(
+      'OpenAI request failed:',
+      error instanceof Error ? error.name : 'unknown'
+    );
     return res.status(500).json({
       content: '抱歉，我现在无法回答您的问题，请稍后再试。',
       model: selectedModel,
