@@ -18,6 +18,15 @@ test('local secrets and generated environment files are not tracked', () => {
   assert.match(readFileSync('.gitignore', 'utf8'), /^\.env\.local$/m);
 });
 
+test('private operational backup formats are excluded from Git', () => {
+  const gitignore = readFileSync('.gitignore', 'utf8');
+
+  assert.match(gitignore, /^backups\/$/m);
+  assert.match(gitignore, /^\*\.backup$/m);
+  assert.match(gitignore, /^\*\.dump$/m);
+  assert.match(gitignore, /^\*\.sql\.gz$/m);
+});
+
 test('local environment secrets are not readable by other system users', () => {
   if (!existsSync('.env.local')) return;
 

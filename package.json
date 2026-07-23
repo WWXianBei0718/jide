@@ -20,7 +20,8 @@
     "eval:persona:rescore": "tsx scripts/run-persona-eval.ts --rescore-only",
     "eval:retrieval": "tsx scripts/run-retrieval-eval.ts",
     "memory:backfill:dry": "tsx scripts/run-memory-backfill.ts",
-    "memory:backfill": "tsx scripts/run-memory-backfill.ts --execute"
+    "memory:backfill": "tsx scripts/run-memory-backfill.ts --execute",
+    "backup:verify": "tsx scripts/verify-backup-readiness.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

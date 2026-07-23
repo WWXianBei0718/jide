@@ -8,3 +8,10 @@ yarn-error.log*
 *.swp
 *.tsbuildinfo
 .DS_Store
+
+# Operational backups may contain private memories, auth records, and file metadata.
+# Keep every backup outside Git; only the checksum manifest in supabase/migrations is tracked.
+backups/
+*.backup
+*.dump
+*.sql.gz
