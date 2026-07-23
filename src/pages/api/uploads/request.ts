@@ -3,6 +3,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import { VOICE_CONSENT_VERSION } from '@/lib/consent-policy';
+import { cleanupExpiredUploadsForUser } from '@/lib/expired-upload-cleanup';
+import { consumeExternalApiQuota } from '@/lib/external-api-quota';
 import { uploadsEnabled, validateUploadRequest, voiceCloningEnabled } from '@/lib/upload-policy';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -42,6 +44,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
   if (!isOwner) return;
+
+  await cleanupExpiredUploadsForUser(user.id);
+
+  const quota = await consumeExternalApiQuota(
+    user.client,
+    'upload',
+    upload.fileSize
+  );
+  if (quota.status === 'unavailable') {
+    return res.status(503).json({ error: '上传额度服务暂时不可用，请稍后重试' });
+  }
+  if (quota.status === 'limited') {
+    res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+    return res.status(429).json({ error: '上传请求已达到当前测试额度，请稍后重试' });
+  }
 
   const uploadId = randomUUID();
   const storagePath = `${user.id}/${profileId}/${uploadId}${upload.extension}`;

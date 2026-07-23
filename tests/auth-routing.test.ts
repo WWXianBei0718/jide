@@ -92,3 +92,14 @@ test('billable voice endpoints enforce persistent quota and safe provider bounda
   assert.match(synthesizeApi, /Cache-Control', 'private, no-store'/);
   assert.doesNotMatch(synthesizeApi, /errorData\.detail/);
 });
+
+test('signed upload requests reserve persistent byte quota and clean expired grants', () => {
+  const uploadRequestApi = readPage('api', 'uploads', 'request.ts');
+
+  assert.match(uploadRequestApi, /consumeExternalApiQuota/);
+  assert.match(uploadRequestApi, /'upload',\s*upload\.fileSize/);
+  assert.match(uploadRequestApi, /cleanupExpiredUploadsForUser\(user\.id\)/);
+  assert.match(uploadRequestApi, /Retry-After/);
+  assert.match(uploadRequestApi, /status\(429\)/);
+  assert.match(uploadRequestApi, /status\(503\)/);
+});

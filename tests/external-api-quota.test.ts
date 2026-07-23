@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   consumeExternalApiQuota,
   interpretExternalApiQuota,
+  MAX_EXTERNAL_API_UNITS,
 } from '../src/lib/external-api-quota';
 
 test('accepts a valid external API quota grant', () => {
@@ -42,8 +43,7 @@ test('external API quota fails closed for malformed results and invalid units', 
   } as unknown as SupabaseClient;
 
   assert.deepEqual(
-    await consumeExternalApiQuota(client, 'tts', 5001),
+    await consumeExternalApiQuota(client, 'upload', MAX_EXTERNAL_API_UNITS + 1),
     { status: 'unavailable' }
   );
 });
-

@@ -15,7 +15,23 @@ test('database migrations include the initial schema before feature migrations',
     '202607220000_add_chat_rate_limits.sql',
     '202607220001_secure_memory_chunks.sql',
     '202607230000_add_external_api_quotas.sql',
+    '202607230001_add_upload_quotas.sql',
   ]);
+});
+
+test('upload quota migration limits signed upload requests by count and bytes', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607230001_add_upload_quotas.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /operation in \('voice_clone', 'tts', 'upload'\)/);
+  assert.match(sql, /requested_operation = 'upload'/);
+  assert.match(sql, /burst_limit := 20/);
+  assert.match(sql, /daily_request_limit := 100/);
+  assert.match(sql, /daily_unit_limit := 524288000/);
+  assert.match(sql, /requested_units > 26214400/);
+  assert.match(sql, /pg_advisory_xact_lock/);
 });
 
 test('external API quota migration atomically limits requests and billable units', () => {

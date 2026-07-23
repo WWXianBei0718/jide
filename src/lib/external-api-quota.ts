@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type ExternalApiOperation = 'voice_clone' | 'tts';
+export const MAX_EXTERNAL_API_UNITS = 25 * 1024 * 1024;
+
+export type ExternalApiOperation = 'voice_clone' | 'tts' | 'upload';
 export type ExternalApiLimitScope = 'burst' | 'daily_requests' | 'daily_units';
 
 interface ExternalApiQuotaRow {
@@ -57,7 +59,7 @@ export async function consumeExternalApiQuota(
   operation: ExternalApiOperation,
   units = 1
 ): Promise<ExternalApiQuotaResult> {
-  if (!Number.isInteger(units) || units < 1 || units > 5000) {
+  if (!Number.isInteger(units) || units < 1 || units > MAX_EXTERNAL_API_UNITS) {
     return { status: 'unavailable' };
   }
 
@@ -71,4 +73,3 @@ export async function consumeExternalApiQuota(
     return { status: 'unavailable' };
   }
 }
-
