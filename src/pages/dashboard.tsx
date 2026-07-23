@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
+import { supabase } from '@/lib/supabase';
+import { ACCOUNT_DELETE_CONFIRMATION } from '@/lib/account-deletion';
 import type { MemoryProfile } from '@/types';
 
 export default function DashboardPage() {
@@ -9,6 +11,10 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [exportingMode, setExportingMode] = useState<'json' | 'zip' | null>(null);
   const [privacyMessage, setPrivacyMessage] = useState('');
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const router = useRouter();
   const redirectRef = useRef(false);
 
@@ -80,6 +86,50 @@ export default function DashboardPage() {
       setPrivacyMessage(error instanceof Error ? error.message : '导出失败');
     } finally {
       setExportingMode(null);
+    }
+  };
+
+  const handleDeleteAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const userEmail = user?.email;
+    if (!userEmail || deleteConfirmation !== ACCOUNT_DELETE_CONFIRMATION) return;
+    if (!window.confirm('这是不可撤销操作。确定永久删除账号、所有资料和声音模型吗？')) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setPrivacyMessage('');
+    try {
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: deletePassword,
+      });
+      if (reauthError) throw new Error('密码验证失败，账号没有被删除');
+
+      const token = await getToken();
+      if (!token) throw new Error('重新验证失败，账号没有被删除');
+      const response = await fetch('/api/account', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userEmail,
+          confirmation: deleteConfirmation,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '账号删除未完成');
+
+      await signOut();
+      redirectRef.current = true;
+      await router.replace('/');
+    } catch (error) {
+      setPrivacyMessage(error instanceof Error ? error.message : '账号删除未完成');
+    } finally {
+      setIsDeletingAccount(false);
+      setDeletePassword('');
     }
   };
 
@@ -216,6 +266,51 @@ export default function DashboardPage() {
           {privacyMessage && (
             <p className="text-sm text-warm-700 mt-3" role="status">{privacyMessage}</p>
           )}
+
+          <div className="border-t border-red-100 mt-6 pt-6">
+            <button
+              type="button"
+              onClick={() => setShowDeleteAccount((visible) => !visible)}
+              className="text-sm text-red-600 hover:text-red-700"
+            >
+              {showDeleteAccount ? '取消删除账号' : '永久删除账号'}
+            </button>
+            {showDeleteAccount && (
+              <form onSubmit={handleDeleteAccount} className="mt-4 max-w-lg space-y-3">
+                <p className="text-sm text-red-700">
+                  此操作会删除账号、人物、聊天、私有文件和已绑定的 ElevenLabs 声音模型，无法撤销。
+                </p>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(event) => setDeletePassword(event.target.value)}
+                  placeholder="重新输入登录密码"
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2 border border-red-200 rounded-lg"
+                  required
+                />
+                <input
+                  type="text"
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  placeholder={`输入“${ACCOUNT_DELETE_CONFIRMATION}”`}
+                  className="w-full px-3 py-2 border border-red-200 rounded-lg"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={
+                    isDeletingAccount ||
+                    !deletePassword ||
+                    deleteConfirmation !== ACCOUNT_DELETE_CONFIRMATION
+                  }
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50"
+                >
+                  {isDeletingAccount ? '正在安全删除…' : '确认永久删除'}
+                </button>
+              </form>
+            )}
+          </div>
         </section>
       </main>
     </div>

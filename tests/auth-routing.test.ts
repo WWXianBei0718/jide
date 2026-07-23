@@ -35,6 +35,17 @@ test('account export is authenticated and honestly labels excluded file bodies',
   assert.match(dashboard, /导出完整压缩包/);
 });
 
+test('account deletion requires authentication, recent verification, and explicit confirmation', () => {
+  const dashboard = readPage('dashboard.tsx');
+  const accountApi = readPage('api', 'account.ts');
+
+  assert.match(accountApi, /const user = await authenticate\(req, res\)/);
+  assert.match(accountApi, /hasRecentAuthentication\(user\.accessToken\)/);
+  assert.match(accountApi, /confirmation !== ACCOUNT_DELETE_CONFIRMATION/);
+  assert.match(dashboard, /supabase\.auth\.signInWithPassword/);
+  assert.match(dashboard, /永久删除账号/);
+});
+
 test('materials page hides controls when the profile is unavailable', () => {
   const materials = readPage('profile', '[id]', 'materials.tsx');
 
