@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { beginApiRequest, logApiError } from '@/lib/api-observability';
 import { authenticate } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import {
@@ -13,6 +14,9 @@ import {
 } from '@/lib/external-resource-deletion';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const requestContext = beginApiRequest(req, res, 'api.account');
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'DELETE') {
     res.setHeader('Allow', 'DELETE');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -94,14 +98,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       message: '账号、私有资料和供应商声音资源已删除',
       deletedVoiceCount: voiceDeletion.deletedCount,
       deletedFileCount: storageDeletion.deletedCount,
     });
   } catch (error) {
-    console.error('Account deletion failed:', error instanceof Error ? error.message : 'unknown');
+    logApiError(requestContext, 'account_deletion.request_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
     return res.status(500).json({ error: '账号删除未完成，请稍后重试' });
   }
 }

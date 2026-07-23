@@ -111,7 +111,11 @@ export async function indexMemoryMaterial(input: {
 
     return { status: 'ready', chunkCount: rows.length, model: EMBEDDING_MODEL };
   } catch (error) {
-    console.error('Memory material indexing failed:', error instanceof Error ? error.message : 'unknown');
+    console.error(JSON.stringify({
+      level: 'error',
+      event: 'memory_indexing.failed',
+      errorName: error instanceof Error ? error.name : 'unknown',
+    }));
     await adminSupabase.from('memory_materials').update({
       metadata: indexingMetadata(processingMetadata, 'failed', {
         indexing_error: 'embedding_or_persistence_failed',

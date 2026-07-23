@@ -1,6 +1,7 @@
 import { ZipArchive } from 'archiver';
 import { createHash } from 'node:crypto';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { beginApiRequest, logApiError } from '@/lib/api-observability';
 import { authenticate } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import { accountExportFileName } from '@/lib/account-export';
@@ -18,6 +19,9 @@ export const config = {
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const requestContext = beginApiRequest(req, res, 'api.account_export_archive');
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -48,17 +52,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const zipFileName = accountExportFileName().replace(/\.json$/, '.zip');
-    res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
 
     const zip = new ZipArchive({ zlib: { level: 6 } });
     zip.on('warning', (warning) => {
-      console.warn('Account export archive warning:', warning.message);
+      logApiError(requestContext, 'account_export.archive_warning', {
+        errorName: warning.name,
+      });
     });
     zip.on('error', (error) => {
-      console.error('Account export archive failed:', error.message);
-      res.destroy(error);
+      logApiError(requestContext, 'account_export.archive_failed', {
+        errorName: error.name,
+      });
+      res.destroy();
     });
     zip.pipe(res);
     zip.append(JSON.stringify(accountData, null, 2), { name: 'account-data.json' });
@@ -80,7 +87,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: '私有文件超过当前单次导出的 100 个文件或 100MB 限制，请等待大容量异步导出功能',
       });
     }
-    console.error('Private account export failed:', reason);
+    logApiError(requestContext, 'account_export_archive.request_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+      outcome: reason === 'private_file_download_failed'
+        || reason === 'private_file_size_mismatch'
+        || reason === 'private_file_hash_mismatch'
+        ? reason
+        : 'unexpected',
+    });
     return res.status(500).json({ error: '无法完整打包私有文件，请稍后重试' });
   }
 }
