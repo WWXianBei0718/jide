@@ -18,4 +18,8 @@ test('AI and voice APIs do not log raw provider responses or exception objects',
   assert.doesNotMatch(chat, /error:\s*data\.error\?\.message/);
   assert.doesNotMatch(voiceClone, /console\.error\('Voice clone error:', error\)/);
   assert.doesNotMatch(voiceSynthesize, /console\.error\('Voice synthesis error:', error\)/);
+  assert.match(chat, /beginApiRequest\(req, res, 'api\.chat'\)/);
+  assert.match(voiceClone, /beginApiRequest\(req, res, 'api\.voice_clone'\)/);
+  assert.match(voiceSynthesize, /beginApiRequest\(req, res, 'api\.voice_synthesize'\)/);
+  assert.doesNotMatch(chat, /error instanceof Error \? error\.message/);
 });

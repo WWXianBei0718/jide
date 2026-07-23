@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { beginApiRequest, logApiError } from '@/lib/api-observability';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { consumeExternalApiQuota } from '@/lib/external-api-quota';
 
@@ -8,6 +9,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const requestContext = beginApiRequest(req, res, 'api.voice_synthesize');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -80,7 +83,9 @@ export default async function handler(
     });
 
     if (!response.ok) {
-      console.error('ElevenLabs TTS request failed with status:', response.status);
+      logApiError(requestContext, 'elevenlabs.tts_failed', {
+        providerStatus: response.status,
+      });
       return res.status(502).json({ error: '声音供应商暂时无法生成语音' });
     }
 
@@ -103,10 +108,9 @@ export default async function handler(
     res.setHeader('Content-Disposition', 'attachment; filename="speech.mp3"');
     res.send(Buffer.from(audioBuffer));
   } catch (error) {
-    console.error(
-      'Voice synthesis request failed:',
-      error instanceof Error ? error.name : 'unknown'
-    );
+    logApiError(requestContext, 'voice_synthesis.request_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
     return res.status(500).json({ error: 'Failed to synthesize speech' });
   }
 }

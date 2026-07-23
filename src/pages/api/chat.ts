@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { beginApiRequest, logApiError } from '@/lib/api-observability';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { resolveChatOptions } from '@/lib/chat-policy';
 import { consumeChatQuota } from '@/lib/chat-rate-limit';
@@ -23,6 +24,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const requestContext = beginApiRequest(req, res, 'api.chat');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -96,7 +99,9 @@ export default async function handler(
       .single();
 
     if (profileError || !profile) {
-      console.error('Failed to fetch profile:', profileError);
+      logApiError(requestContext, 'profile.fetch_failed', {
+        outcome: profileError ? 'database_error' : 'not_found',
+      });
       return res.status(404).json({ error: 'Profile not found' });
     }
 
@@ -109,7 +114,9 @@ export default async function handler(
       .limit(MAX_RETRIEVAL_MATERIALS);
 
     if (materialsError) {
-      console.error('Failed to fetch profile materials:', materialsError);
+      logApiError(requestContext, 'materials.fetch_failed', {
+        outcome: 'lexical_context_unavailable',
+      });
     }
 
     const { data: recentMessages, error: recentMessagesError } = await user.client
@@ -120,11 +127,18 @@ export default async function handler(
       .limit(12);
 
     if (recentMessagesError) {
-      console.error('Failed to fetch recent conversation:', recentMessagesError);
+      logApiError(requestContext, 'conversation.fetch_failed', {
+        outcome: 'history_unavailable',
+      });
     }
 
     const lexicalMaterials = retrieveRelevantMaterialChunks(materials || [], message.trim());
-    const vectorMaterials = await retrieveVectorChunks(user.client, profileId, message.trim());
+    const vectorMaterials = await retrieveVectorChunks(
+      user.client,
+      profileId,
+      message.trim(),
+      requestContext
+    );
     const retrievedMaterials = mergeRetrievedMaterialChunks(vectorMaterials, lexicalMaterials);
     const retrievalStrategy = vectorMaterials.length > 0 ? 'vector+lexical' : 'lexical-fallback';
     const personaContext = buildPersonaPrompt(profile, retrievedMaterials);
@@ -158,7 +172,9 @@ export default async function handler(
     const data = response.data;
     
     if (!response.ok) {
-      console.error('OpenAI request failed with status:', response.status);
+      logApiError(requestContext, 'openai.request_failed', {
+        providerStatus: response.status,
+      });
       return res.status(response.status).json({
         error: response.status === 429
           ? 'AI 服务当前额度或请求频率受限，请稍后重试'
@@ -210,10 +226,9 @@ export default async function handler(
       });
     }
   } catch (error) {
-    console.error(
-      'OpenAI request failed:',
-      error instanceof Error ? error.name : 'unknown'
-    );
+    logApiError(requestContext, 'chat.request_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
     return res.status(500).json({
       content: '抱歉，我现在无法回答您的问题，请稍后再试。',
       model: selectedModel,
@@ -233,7 +248,8 @@ interface VectorChunkRow {
 async function retrieveVectorChunks(
   client: SupabaseClient,
   profileId: string,
-  query: string
+  query: string,
+  requestContext?: ReturnType<typeof beginApiRequest>
 ): Promise<RetrievedMaterialChunk[]> {
   const { data: indexedChunks, error: indexedChunksError } = await client
     .from('memory_chunks')
@@ -264,7 +280,12 @@ async function retrieveVectorChunks(
       relevanceScore: Number(row.similarity.toFixed(4)),
     }));
   } catch (error) {
-    console.error('Vector retrieval unavailable:', error instanceof Error ? error.message : 'unknown');
+    if (requestContext) {
+      logApiError(requestContext, 'memory.vector_unavailable', {
+        errorName: error instanceof Error ? error.name : 'unknown',
+        outcome: 'lexical_fallback',
+      });
+    }
     return [];
   }
 }

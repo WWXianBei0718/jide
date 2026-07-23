@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { beginApiRequest, logApiError } from '@/lib/api-observability';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import { VOICE_CONSENT_NOTICE_TEXT, VOICE_CONSENT_VERSION } from '@/lib/consent-policy';
@@ -26,6 +27,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const requestContext = beginApiRequest(req, res, 'api.voice_clone');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -148,7 +151,9 @@ export default async function handler(
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('ElevenLabs voice clone request failed with status:', response.status);
+      logApiError(requestContext, 'elevenlabs.voice_clone_failed', {
+        providerStatus: response.status,
+      });
       return res.status(502).json({ error: '声音供应商暂时无法创建声音模型' });
     }
 
@@ -167,11 +172,9 @@ export default async function handler(
         [data.voice_id],
         process.env.ELEVENLABS_API_KEY
       );
-      console.error(
-        rollback.ok
-          ? 'Created voice was removed after profile persistence failed'
-          : 'Created voice could not be persisted or removed'
-      );
+      logApiError(requestContext, 'voice_clone.persistence_failed', {
+        outcome: rollback.ok ? 'provider_copy_removed' : 'manual_cleanup_required',
+      });
       return res.status(502).json({
         error: rollback.ok
           ? '声音模型保存失败，供应商副本已安全撤销，可以稍后重试'
@@ -197,10 +200,9 @@ export default async function handler(
       message: cleanupFailed ? '语音克隆创建成功，原始样本已封锁并等待后台重试清理' : '语音克隆创建成功',
     });
   } catch (error) {
-    console.error(
-      'Voice clone request failed:',
-      error instanceof Error ? error.name : 'unknown'
-    );
+    logApiError(requestContext, 'voice_clone.request_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
     return res.status(500).json({ error: 'Failed to create voice clone' });
   }
 }
