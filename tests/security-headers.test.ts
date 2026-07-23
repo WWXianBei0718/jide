@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
@@ -38,4 +40,21 @@ test('content policy blocks plugins and framing while limiting browser network a
   assert.match(policy, /connect-src 'self' https:\/\/\*\.supabase\.co/);
   assert.doesNotMatch(policy, /api\.openai\.com|api\.elevenlabs\.io/);
   assert.doesNotMatch(policy, /unsafe-eval/);
+});
+
+test('authenticated API responses are private and never cacheable', () => {
+  const authenticationBoundary = readFileSync(
+    path.join(process.cwd(), 'src', 'lib', 'auth-middleware.ts'),
+    'utf8'
+  );
+
+  assert.match(
+    authenticationBoundary,
+    /res\.setHeader\('Cache-Control', 'private, no-store, max-age=0'\)/
+  );
+  assert.match(authenticationBoundary, /res\.setHeader\('Pragma', 'no-cache'\)/);
+  assert.ok(
+    authenticationBoundary.indexOf("res.setHeader('Cache-Control'") <
+      authenticationBoundary.indexOf('const authHeader = req.headers.authorization')
+  );
 });

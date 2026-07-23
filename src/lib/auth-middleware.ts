@@ -13,6 +13,9 @@ export async function authenticate(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<AuthenticatedUser | null> {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
