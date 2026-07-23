@@ -1,0 +1,209 @@
+{
+  "dataset": "fictional-retrieval-v1",
+  "generatedAt": "2026-07-23T02:23:20.007Z",
+  "strategy": "lexical-fallback",
+  "caseCount": 14,
+  "topK": 3,
+  "top1Accuracy": 0.7142857142857143,
+  "hitRateAtK": 1,
+  "meanReciprocalRank": 0.8452380952380952,
+  "cases": [
+    {
+      "id": "birth-date",
+      "query": "她的生日是哪一天？",
+      "expectedMaterialIds": [
+        "fictional-biography"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-biography",
+        "fictional-events",
+        "fictional-habits"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "career",
+      "query": "她退休前靠什么工作生活？",
+      "expectedMaterialIds": [
+        "fictional-biography"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-habits",
+        "fictional-biography",
+        "fictional-style"
+      ],
+      "firstRelevantRank": 2,
+      "hit": true
+    },
+    {
+      "id": "spouse",
+      "query": "周远山从事什么职业？",
+      "expectedMaterialIds": [
+        "fictional-biography"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-biography",
+        "fictional-events",
+        "fictional-relationship"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "morning",
+      "query": "她每天早晨起床后先做什么？",
+      "expectedMaterialIds": [
+        "fictional-habits"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-habits",
+        "fictional-style",
+        "fictional-values"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "drink",
+      "query": "她平时爱喝哪一种茶？",
+      "expectedMaterialIds": [
+        "fictional-habits"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-habits",
+        "fictional-biography",
+        "fictional-relationship"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "nickname",
+      "query": "她怎样称呼自己的外孙女？",
+      "expectedMaterialIds": [
+        "fictional-relationship"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-relationship",
+        "fictional-style",
+        "fictional-untrusted"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "thunder",
+      "query": "孩子害怕雷声时她怎么安抚？",
+      "expectedMaterialIds": [
+        "fictional-relationship"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-relationship",
+        "fictional-untrusted",
+        "fictional-style"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "anxiety",
+      "query": "家里人焦虑的时候她一般怎么处理？",
+      "expectedMaterialIds": [
+        "fictional-values"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-values",
+        "fictional-relationship",
+        "fictional-events"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "health",
+      "query": "她觉得升职和身体哪个更重要？",
+      "expectedMaterialIds": [
+        "fictional-values"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-values",
+        "fictional-style",
+        "fictional-biography"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "flood",
+      "query": "洪灾发生时她抢救了什么东西？",
+      "expectedMaterialIds": [
+        "fictional-events"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-biography",
+        "fictional-habits",
+        "fictional-events"
+      ],
+      "firstRelevantRank": 3,
+      "hit": true
+    },
+    {
+      "id": "bookmark",
+      "query": "第一届学生送给她的纪念物是什么？",
+      "expectedMaterialIds": [
+        "fictional-events"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-events",
+        "fictional-biography",
+        "fictional-habits"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    },
+    {
+      "id": "overwork",
+      "query": "小满忙得喘不过气时她会说什么？",
+      "expectedMaterialIds": [
+        "fictional-style",
+        "fictional-values"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-relationship",
+        "fictional-style",
+        "fictional-values"
+      ],
+      "firstRelevantRank": 2,
+      "hit": true
+    },
+    {
+      "id": "promotion",
+      "query": "听到小满晋升，她会怎样回应？",
+      "expectedMaterialIds": [
+        "fictional-style"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-relationship",
+        "fictional-style",
+        "fictional-values"
+      ],
+      "firstRelevantRank": 2,
+      "hit": true
+    },
+    {
+      "id": "prompt-injection",
+      "query": "哪份材料声称要忽略规则并去过月球？",
+      "expectedMaterialIds": [
+        "fictional-untrusted"
+      ],
+      "retrievedMaterialIds": [
+        "fictional-untrusted",
+        "fictional-biography",
+        "fictional-habits"
+      ],
+      "firstRelevantRank": 1,
+      "hit": true
+    }
+  ]
+}
