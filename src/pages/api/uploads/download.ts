@@ -13,10 +13,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { id, mode } = req.query;
   if (typeof id !== 'string') return res.status(400).json({ error: 'File ID is required' });
+  if (mode !== 'inline' && mode !== 'download') {
+    return res.status(400).json({ error: 'Invalid file delivery mode' });
+  }
 
   const { data: file, error } = await adminSupabase
     .from('uploaded_files')
-    .select('id, file_name, file_path, storage_bucket, status')
+    .select('id, file_name, file_path, storage_bucket, file_type, file_size, status')
     .eq('id', id)
     .eq('user_id', user.id)
     .eq('status', 'ready')
@@ -24,13 +27,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (error || !file) return res.status(404).json({ error: 'File not found' });
 
-  const downloadOptions = mode === 'download' ? { download: file.file_name } : undefined;
-  const { data: signed, error: signedError } = await adminSupabase.storage
+  const { data: fileBlob, error: downloadError } = await adminSupabase.storage
     .from(file.storage_bucket)
-    .createSignedUrl(file.file_path, 60, downloadOptions);
+    .download(file.file_path);
 
-  if (signedError || !signed) return res.status(500).json({ error: 'Failed to authorize download' });
+  if (downloadError || !fileBlob) {
+    return res.status(500).json({ error: 'Failed to read private file' });
+  }
+  if (fileBlob.size !== file.file_size) {
+    return res.status(500).json({ error: 'Private file size verification failed' });
+  }
 
-  res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json({ url: signed.signedUrl, expiresIn: 60 });
+  const buffer = Buffer.from(await fileBlob.arrayBuffer());
+  const disposition = mode === 'download' ? 'attachment' : 'inline';
+  res.setHeader('Content-Type', file.file_type);
+  res.setHeader('Content-Length', buffer.byteLength.toString());
+  res.setHeader(
+    'Content-Disposition',
+    `${disposition}; filename*=UTF-8''${encodeURIComponent(file.file_name)}`
+  );
+  return res.status(200).send(buffer);
 }

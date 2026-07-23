@@ -63,7 +63,7 @@ flowchart LR
     DB["Postgres\nRLS、约束、加密字段、审计引用"]
     Q["私有 quarantine 桶\n不可下载、短期保留"]
     SCAN["异步扫描/转码 Worker\n魔数、AV、CDR、元数据清理"]
-    ASSET["私有 assets 桶\nRLS、短效签名 URL"]
+    ASSET["私有 assets 桶\nRLS、认证代理下载"]
     KMS["云 KMS / HSM\nKEK 与轮换"]
     OUT["受控出站代理\n字段最小化、超时、重试、审计"]
     OAI["OpenAI 项目"]
@@ -264,7 +264,7 @@ stateDiagram-v2
    - 音视频用受限解码器重新封装/转码；
    - SHA-256 去重与已知恶意样本阻断。
 5. 扫描通过后复制为不可变对象版本到私有资产桶，写入扫描器版本和哈希；隔离原件删除。
-6. 下载使用用户 JWT 或 60–300 秒签名 URL。C3 导出优先经 BFF 流式代理，响应设置 `Content-Disposition: attachment`、`X-Content-Type-Options: nosniff`。
+6. 当前下载统一经携带用户 JWT 的 BFF 代理，核验归属、可用状态和文件大小后返回；浏览器只使用临时 Blob URL。响应设置 `Content-Disposition`、`Content-Length`、禁止缓存和 `X-Content-Type-Options: nosniff`，不向浏览器发放 Storage 签名 URL。
 
 ### 7.3 文件策略
 

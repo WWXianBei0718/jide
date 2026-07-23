@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
@@ -40,9 +40,16 @@ export default function MaterialsPage() {
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  const previewUrlsRef = useRef<Record<string, string>>({});
   const [newMaterial, setNewMaterial] = useState({ title: '', content: '' });
   const router = useRouter();
   const { id } = router.query;
+
+  useEffect(() => () => {
+    for (const url of Object.values(previewUrlsRef.current)) {
+      URL.revokeObjectURL(url);
+    }
+  }, []);
 
   const authorizedFetch = useCallback(async (url: string, init: RequestInit = {}) => {
     const token = await getToken();
@@ -191,13 +198,23 @@ export default function MaterialsPage() {
     clearMessages();
     try {
       const response = await authorizedFetch(`/api/uploads/download?id=${encodeURIComponent(file.id)}&mode=inline`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '无法打开文件');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '无法打开文件');
+      }
+      const url = URL.createObjectURL(await response.blob());
 
       if (file.file_type === 'application/pdf') {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
+        window.open(url, '_blank', 'noopener,noreferrer');
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       } else {
-        setPreviewUrls((current) => ({ ...current, [file.id]: data.url }));
+        setPreviewUrls((current) => {
+          const previous = current[file.id];
+          if (previous) URL.revokeObjectURL(previous);
+          const next = { ...current, [file.id]: url };
+          previewUrlsRef.current = next;
+          return next;
+        });
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '无法打开文件');
@@ -208,9 +225,18 @@ export default function MaterialsPage() {
     clearMessages();
     try {
       const response = await authorizedFetch(`/api/uploads/download?id=${encodeURIComponent(file.id)}&mode=download`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '无法下载文件');
-      window.location.assign(data.url);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '无法下载文件');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.file_name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '无法下载文件');
     }
