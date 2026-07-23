@@ -420,7 +420,7 @@ CREATE POLICY "Users can create their own consents"
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://swerahhzqbfarsdcmdqb.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_BmkzhYJGRSn1WNaxDqO4qA_ygbh6FU9
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx
+OPENAI_API_KEY=[REDACTED_ROTATED_KEY]
 ELEVENLABS_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
