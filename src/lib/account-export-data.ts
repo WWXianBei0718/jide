@@ -1,5 +1,10 @@
 import { adminSupabase } from './admin-supabase';
-import { buildAccountExportArchive, type AccountExportArchive } from './account-export';
+import {
+  buildAccountExportArchive,
+  sanitizeExportProfiles,
+  sanitizeVoiceCloningJobs,
+  type AccountExportArchive,
+} from './account-export';
 
 const PAGE_SIZE = 500;
 
@@ -203,14 +208,14 @@ export async function collectAccountExport(
   return {
     archive: buildAccountExportArchive({
       user: { id: userId, email },
-      profiles,
+      profiles: sanitizeExportProfiles(profiles),
       materials,
       memoryChunks,
       conversations,
       messages,
       uploadedFiles: safeUploadedFiles,
       consents,
-      voiceCloningJobs,
+      voiceCloningJobs: sanitizeVoiceCloningJobs(voiceCloningJobs),
       chatUsageEvents,
       externalApiUsageEvents,
     }),
