@@ -25,6 +25,16 @@ test('dashboard profile cards use button semantics', () => {
   assert.doesNotMatch(dashboard, /<div\s+key=\{profile\.id\}\s+onClick=/);
 });
 
+test('account export is authenticated and honestly labels excluded file bodies', () => {
+  const dashboard = readPage('dashboard.tsx');
+  const exportApi = readPage('api', 'account-export.ts');
+
+  assert.match(exportApi, /const user = await authenticate\(req, res\)/);
+  assert.match(exportApi, /Cache-Control', 'no-store'/);
+  assert.match(dashboard, /导出我的结构化数据/);
+  assert.match(dashboard, /不包含图片、音频、视频和 PDF 文件正文/);
+});
+
 test('materials page hides controls when the profile is unavailable', () => {
   const materials = readPage('profile', '[id]', 'materials.tsx');
 

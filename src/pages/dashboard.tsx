@@ -7,6 +7,8 @@ export default function DashboardPage() {
   const { user, loading, signOut, getToken } = useAuth();
   const [profiles, setProfiles] = useState<MemoryProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [privacyMessage, setPrivacyMessage] = useState('');
   const router = useRouter();
   const redirectRef = useRef(false);
 
@@ -41,6 +43,36 @@ export default function DashboardPage() {
     await signOut();
     redirectRef.current = true;
     router.push('/');
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    setPrivacyMessage('');
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('登录已失效，请重新登录');
+      const response = await fetch('/api/account-export', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('暂时无法导出，请稍后重试');
+
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || 'remember-account-export.json';
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      setPrivacyMessage('结构化数据已导出。私有图片、音频、视频和 PDF 正文暂不包含在此文件中。');
+    } catch (error) {
+      setPrivacyMessage(error instanceof Error ? error.message : '导出失败');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (loading) {
@@ -148,6 +180,27 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        <section className="mt-12 bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-warm-900">隐私与数据</h2>
+          <p className="text-sm text-warm-600 mt-2">
+            导出人物档案、文字资料、聊天记录、记忆处理状态、同意记录和私有文件清单。
+          </p>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting}
+            className="mt-4 px-4 py-2 border border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 disabled:opacity-50"
+          >
+            {isExporting ? '正在整理数据…' : '导出我的结构化数据'}
+          </button>
+          <p className="text-xs text-warm-500 mt-3">
+            当前导出不包含图片、音频、视频和 PDF 文件正文；完整文件压缩包仍在开发中。
+          </p>
+          {privacyMessage && (
+            <p className="text-sm text-warm-700 mt-3" role="status">{privacyMessage}</p>
+          )}
+        </section>
       </main>
     </div>
   );
