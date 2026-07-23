@@ -40,7 +40,7 @@ test('account deletion requires authentication, recent verification, and explici
   const accountApi = readPage('api', 'account.ts');
 
   assert.match(accountApi, /const user = await authenticate\(req, res\)/);
-  assert.match(accountApi, /hasRecentAuthentication\(user\.accessToken\)/);
+  assert.match(accountApi, /hasRecentPasswordAuthentication\(user\.accessToken\)/);
   assert.match(accountApi, /from\('external_api_usage_events'\)\.delete\(\)\.eq\('user_id', user\.id\)/);
   assert.match(accountApi, /confirmation !== ACCOUNT_DELETE_CONFIRMATION/);
   assert.match(dashboard, /supabase\.auth\.signInWithPassword/);

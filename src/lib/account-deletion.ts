@@ -1,6 +1,11 @@
 export const ACCOUNT_DELETE_CONFIRMATION = '永久删除我的账号';
 export const MAX_REAUTH_AGE_SECONDS = 5 * 60;
 
+interface AuthenticationMethodReference {
+  method: string;
+  timestamp: number;
+}
+
 export interface StorageDeletionTarget {
   bucket: string;
   path: string;
@@ -13,27 +18,45 @@ export interface DeletableUpload {
   status: string;
 }
 
-export function accessTokenIssuedAt(accessToken: string): number | null {
+export function accessTokenAuthenticationMethods(
+  accessToken: string
+): AuthenticationMethodReference[] {
   try {
     const payload = accessToken.split('.')[1];
-    if (!payload) return null;
+    if (!payload) return [];
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
-      iat?: unknown;
+      amr?: unknown;
     };
-    return typeof parsed.iat === 'number' && Number.isFinite(parsed.iat) ? parsed.iat : null;
+    if (!Array.isArray(parsed.amr)) return [];
+
+    return parsed.amr.flatMap((entry) => {
+      if (
+        typeof entry !== 'object'
+        || entry === null
+        || !('method' in entry)
+        || !('timestamp' in entry)
+        || typeof entry.method !== 'string'
+        || typeof entry.timestamp !== 'number'
+        || !Number.isFinite(entry.timestamp)
+      ) {
+        return [];
+      }
+      return [{ method: entry.method, timestamp: entry.timestamp }];
+    });
   } catch {
-    return null;
+    return [];
   }
 }
 
-export function hasRecentAuthentication(
+export function hasRecentPasswordAuthentication(
   accessToken: string,
   nowSeconds = Math.floor(Date.now() / 1000)
 ): boolean {
-  const issuedAt = accessTokenIssuedAt(accessToken);
-  if (issuedAt === null) return false;
-  const age = nowSeconds - issuedAt;
-  return age >= -60 && age <= MAX_REAUTH_AGE_SECONDS;
+  return accessTokenAuthenticationMethods(accessToken).some(({ method, timestamp }) => {
+    if (method !== 'password') return false;
+    const age = nowSeconds - timestamp;
+    return age >= -60 && age <= MAX_REAUTH_AGE_SECONDS;
+  });
 }
 
 export function storageDeletionTargets(uploads: DeletableUpload[]): StorageDeletionTarget[] {

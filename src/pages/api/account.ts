@@ -4,7 +4,7 @@ import { authenticate } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import {
   ACCOUNT_DELETE_CONFIRMATION,
-  hasRecentAuthentication,
+  hasRecentPasswordAuthentication,
   storageDeletionTargets,
   type DeletableUpload,
 } from '@/lib/account-deletion';
@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (confirmation !== ACCOUNT_DELETE_CONFIRMATION || email !== user.email) {
     return res.status(400).json({ error: '删除确认文本或邮箱不匹配' });
   }
-  if (!hasRecentAuthentication(user.accessToken)) {
+  if (!hasRecentPasswordAuthentication(user.accessToken)) {
     return res.status(401).json({ error: '请重新输入密码验证身份后再删除账号' });
   }
 

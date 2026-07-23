@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership, type AuthenticatedUser } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
-import { hasRecentAuthentication, storageDeletionTargets, type DeletableUpload } from '@/lib/account-deletion';
+import { hasRecentPasswordAuthentication, storageDeletionTargets, type DeletableUpload } from '@/lib/account-deletion';
 import { deleteElevenLabsVoices, deleteStorageTargets } from '@/lib/external-resource-deletion';
 
 const PUBLIC_PROFILE_FIELDS =
@@ -190,7 +190,7 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse, user: Aut
     if (confirmation !== profile.name) {
       return res.status(400).json({ error: '请输入人物姓名确认删除' });
     }
-    if (!hasRecentAuthentication(user.accessToken)) {
+    if (!hasRecentPasswordAuthentication(user.accessToken)) {
       return res.status(401).json({ error: '请重新输入密码验证身份后再删除人物' });
     }
 
