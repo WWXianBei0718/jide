@@ -12,12 +12,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return getMaterials(req, res, user);
     case 'POST':
       return createTextMaterial(req, res, user);
+    case 'PATCH':
+      return retryMaterialIndexing(req, res, user);
     case 'DELETE':
       return deleteMaterial(req, res, user);
     default:
-      res.setHeader('Allow', 'GET, POST, DELETE');
+      res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
       return res.status(405).json({ error: 'Method not allowed' });
   }
+}
+
+async function retryMaterialIndexing(req: NextApiRequest, res: NextApiResponse, user: User) {
+  const { id } = req.body;
+  if (typeof id !== 'string') return res.status(400).json({ error: 'Material ID is required' });
+
+  const { data: material, error } = await user.client
+    .from('memory_materials')
+    .select('id, memory_profile_id, type, content, metadata')
+    .eq('id', id)
+    .single();
+
+  if (error || !material) return res.status(404).json({ error: 'Material not found' });
+
+  const isOwner = await verifyProfileOwnership(material.memory_profile_id, user.id, user.client, res);
+  if (!isOwner) return;
+
+  if (material.type !== 'text' || typeof material.content !== 'string' || !material.content.trim()) {
+    return res.status(400).json({ error: 'This material does not have indexable text yet' });
+  }
+
+  const indexing = await indexMemoryMaterial({
+    materialId: material.id,
+    profileId: material.memory_profile_id,
+    sourceType: material.type,
+    content: material.content,
+    metadata: material.metadata,
+  });
+
+  return res.status(indexing.status === 'ready' ? 200 : 503).json({ indexing });
 }
 
 type User = NonNullable<Awaited<ReturnType<typeof authenticate>>>;

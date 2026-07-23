@@ -36,6 +36,7 @@ export default function MaterialsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [retryingMaterialId, setRetryingMaterialId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -233,6 +234,29 @@ export default function MaterialsPage() {
     }
   };
 
+  const handleRetryIndexing = async (materialId: string) => {
+    clearMessages();
+    setRetryingMaterialId(materialId);
+    try {
+      const response = await authorizedFetch('/api/materials', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: materialId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error('语义记忆暂时无法建立；原始资料已保留，关键词检索仍可使用');
+      }
+      setStatusMessage(`语义记忆已建立，共 ${data.indexing.chunkCount} 个片段`);
+      await fetchMaterials();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '语义记忆建立失败');
+      await fetchMaterials();
+    } finally {
+      setRetryingMaterialId(null);
+    }
+  };
+
   const clearMessages = () => {
     setErrorMessage('');
     setStatusMessage('');
@@ -369,6 +393,8 @@ export default function MaterialsPage() {
               onPreview={handlePreview}
               onDownload={handleDownload}
               onDelete={() => handleDelete(material.id)}
+              onRetryIndexing={() => handleRetryIndexing(material.id)}
+              isRetrying={retryingMaterialId === material.id}
             />
           ))}
 
@@ -390,14 +416,21 @@ function MaterialCard({
   onPreview,
   onDownload,
   onDelete,
+  onRetryIndexing,
+  isRetrying,
 }: {
   material: MaterialWithFile;
   previewUrl?: string;
   onPreview: (file: UploadedFileSummary) => void;
   onDownload: (file: UploadedFileSummary) => void;
   onDelete: () => void;
+  onRetryIndexing: () => void;
+  isRetrying: boolean;
 }) {
   const file = material.uploaded_files;
+  const indexingStatus = typeof material.metadata?.indexing_status === 'string'
+    ? material.metadata.indexing_status
+    : null;
   return (
     <article className="bg-white rounded-xl shadow-sm p-6">
       <div className="flex items-start justify-between gap-4 mb-3">
@@ -411,6 +444,21 @@ function MaterialCard({
       </div>
 
       {material.content && <p className="text-warm-600 mb-4 whitespace-pre-wrap">{material.content}</p>}
+
+      {material.type === 'text' && (
+        <div className="mb-4">
+          <IndexingStatus status={indexingStatus} />
+          {indexingStatus === 'failed' && (
+            <button
+              onClick={onRetryIndexing}
+              disabled={isRetrying}
+              className="ml-3 text-sm text-primary-600 hover:text-primary-700 disabled:opacity-50"
+            >
+              {isRetrying ? '正在重试…' : '重新建立语义记忆'}
+            </button>
+          )}
+        </div>
+      )}
 
       {file && (
         <div className="border border-warm-100 rounded-lg p-4 mb-4">
@@ -441,6 +489,22 @@ function MaterialCard({
       <time className="text-warm-400 text-sm">{new Date(material.created_at).toLocaleString('zh-CN')}</time>
     </article>
   );
+}
+
+function IndexingStatus({ status }: { status: string | null }) {
+  if (status === 'ready') {
+    return <span className="text-sm text-green-700">已进入语义记忆</span>;
+  }
+  if (status === 'processing') {
+    return <span className="text-sm text-amber-700">正在建立语义记忆</span>;
+  }
+  if (status === 'failed') {
+    return <span className="text-sm text-amber-700">语义记忆待重试（关键词检索可用）</span>;
+  }
+  if (status === 'skipped') {
+    return <span className="text-sm text-warm-500">没有可建立索引的文字</span>;
+  }
+  return <span className="text-sm text-warm-500">尚未建立语义记忆（关键词检索可用）</span>;
 }
 
 function SubmitRow({
