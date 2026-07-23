@@ -72,3 +72,23 @@ test('chat page hides the composer when the profile is unavailable', () => {
   assert.match(chat, /if \(!profile\) \{/);
   assert.match(chat, /记忆体不存在或你无权访问/);
 });
+
+test('billable voice endpoints enforce persistent quota and safe provider boundaries', () => {
+  const cloneApi = readPage('api', 'voice-clone.ts');
+  const synthesizeApi = readPage('api', 'voice-synthesize.ts');
+
+  for (const source of [cloneApi, synthesizeApi]) {
+    assert.match(source, /consumeExternalApiQuota/);
+    assert.match(source, /Retry-After/);
+    assert.match(source, /status\(429\)/);
+    assert.match(source, /status\(503\)/);
+  }
+
+  assert.match(cloneApi, /if \(profile\.voice_id\)/);
+  assert.match(cloneApi, /deleteElevenLabsVoices/);
+  assert.doesNotMatch(cloneApi, /data\.detail/);
+  assert.match(synthesizeApi, /AbortSignal\.timeout\(30_000\)/);
+  assert.match(synthesizeApi, /audioBuffer\.byteLength > MAX_AUDIO_BYTES/);
+  assert.match(synthesizeApi, /Cache-Control', 'private, no-store'/);
+  assert.doesNotMatch(synthesizeApi, /errorData\.detail/);
+});

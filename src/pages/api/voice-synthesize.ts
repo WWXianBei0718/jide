@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
+import { consumeExternalApiQuota } from '@/lib/external-api-quota';
+
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 
 export default async function handler(
   req: NextApiRequest,
@@ -18,7 +21,8 @@ export default async function handler(
     return res.status(400).json({ error: 'Missing required fields: profileId and text' });
   }
 
-  if (text.length > 5000) {
+  const normalizedText = text.trim();
+  if (normalizedText.length > 5000) {
     return res.status(400).json({ error: 'Text must be 5000 characters or fewer' });
   }
 
@@ -44,6 +48,19 @@ export default async function handler(
       return res.status(400).json({ error: 'Voice not trained for this profile' });
     }
 
+    const quota = await consumeExternalApiQuota(
+      user.client,
+      'tts',
+      normalizedText.length
+    );
+    if (quota.status === 'unavailable') {
+      return res.status(503).json({ error: '语音额度服务暂时不可用，请稍后重试' });
+    }
+    if (quota.status === 'limited') {
+      res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+      return res.status(429).json({ error: '语音生成请求已达到当前测试额度，请稍后重试' });
+    }
+
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${profile.voice_id}`, {
       method: 'POST',
       headers: {
@@ -51,7 +68,7 @@ export default async function handler(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: text.trim(),
+        text: normalizedText,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
           stability: 0.5,
@@ -59,16 +76,29 @@ export default async function handler(
           style_exaggeration: 0.5,
         },
       }),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('ElevenLabs TTS error:', errorData);
-      return res.status(response.status).json({ error: errorData.detail || 'Failed to synthesize speech' });
+      console.error('ElevenLabs TTS request failed with status:', response.status);
+      return res.status(502).json({ error: '声音供应商暂时无法生成语音' });
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (
+      !contentType.toLowerCase().startsWith('audio/') ||
+      (Number.isFinite(declaredLength) && declaredLength > MAX_AUDIO_BYTES)
+    ) {
+      return res.status(502).json({ error: '声音供应商返回了无效或过大的音频' });
     }
 
     const audioBuffer = await response.arrayBuffer();
-    
+    if (audioBuffer.byteLength > MAX_AUDIO_BYTES) {
+      return res.status(502).json({ error: '声音供应商返回了无效或过大的音频' });
+    }
+
+    res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', 'attachment; filename="speech.mp3"');
     res.send(Buffer.from(audioBuffer));

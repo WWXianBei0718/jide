@@ -3,6 +3,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import { VOICE_CONSENT_NOTICE_TEXT, VOICE_CONSENT_VERSION } from '@/lib/consent-policy';
+import { deleteElevenLabsVoices } from '@/lib/external-resource-deletion';
+import { consumeExternalApiQuota } from '@/lib/external-api-quota';
 import { voiceCloningEnabled } from '@/lib/upload-policy';
 
 interface VoiceUpload {
@@ -59,12 +61,16 @@ export default async function handler(
   try {
     const { data: profile, error: profileError } = await user.client
       .from('memory_profiles')
-      .select('name')
+      .select('name, voice_id')
       .eq('id', profileId)
       .single();
 
     if (profileError || !profile) {
       return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    if (profile.voice_id) {
+      return res.status(409).json({ error: '该人物已经拥有声音模型，请勿重复创建' });
     }
 
     const { data: uploadRows, error: uploadsError } = await adminSupabase
@@ -89,6 +95,28 @@ export default async function handler(
       return res.status(400).json({ error: '所有声音样本都必须包含明确的声纹同意证明' });
     }
 
+    const formData = new FormData();
+    formData.append('name', `${profile.name} 的声音`);
+
+    for (const [index, file] of voiceUploads.entries()) {
+      const { data: blob, error: downloadError } = await adminSupabase.storage
+        .from(file.storage_bucket)
+        .download(file.file_path);
+      if (downloadError || !blob) {
+        return res.status(500).json({ error: 'Failed to read a validated voice sample' });
+      }
+      formData.append(`files[${index}]`, blob, file.file_name);
+    }
+
+    const quota = await consumeExternalApiQuota(user.client, 'voice_clone');
+    if (quota.status === 'unavailable') {
+      return res.status(503).json({ error: '声音克隆配额服务暂时不可用，请稍后重试' });
+    }
+    if (quota.status === 'limited') {
+      res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+      return res.status(429).json({ error: '声音克隆请求过于频繁，请稍后重试' });
+    }
+
     const consentedAt = new Date().toISOString();
     const { error: consentError } = await adminSupabase.from('consents').insert({
       user_id: user.id,
@@ -108,19 +136,6 @@ export default async function handler(
       return res.status(500).json({ error: '无法保存声纹同意证明，已中止声音克隆' });
     }
 
-    const formData = new FormData();
-    formData.append('name', `${profile.name} 的声音`);
-
-    for (const [index, file] of voiceUploads.entries()) {
-      const { data: blob, error: downloadError } = await adminSupabase.storage
-        .from(file.storage_bucket)
-        .download(file.file_path);
-      if (downloadError || !blob) {
-        return res.status(500).json({ error: 'Failed to read a validated voice sample' });
-      }
-      formData.append(`files[${index}]`, blob, file.file_name);
-    }
-
     const response = await fetch('https://api.elevenlabs.io/v1/voices/ivc/create', {
       method: 'POST',
       headers: {
@@ -133,8 +148,8 @@ export default async function handler(
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('ElevenLabs API error:', data);
-      return res.status(response.status).json({ error: data.detail || 'Failed to create voice clone' });
+      console.error('ElevenLabs voice clone request failed with status:', response.status);
+      return res.status(502).json({ error: '声音供应商暂时无法创建声音模型' });
     }
 
     if (typeof data.voice_id !== 'string' || !data.voice_id) {
@@ -148,8 +163,20 @@ export default async function handler(
       .eq('user_id', user.id);
 
     if (updateError) {
-      console.error('Failed to save cloned voice ID:', updateError);
-      return res.status(500).json({ error: 'Voice was created but could not be saved to the profile' });
+      const rollback = await deleteElevenLabsVoices(
+        [data.voice_id],
+        process.env.ELEVENLABS_API_KEY
+      );
+      console.error(
+        rollback.ok
+          ? 'Created voice was removed after profile persistence failed'
+          : 'Created voice could not be persisted or removed'
+      );
+      return res.status(502).json({
+        error: rollback.ok
+          ? '声音模型保存失败，供应商副本已安全撤销，可以稍后重试'
+          : '声音模型保存失败且供应商删除未确认，请联系支持后再重试',
+      });
     }
 
     const cleanupResults = await Promise.all(
