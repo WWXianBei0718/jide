@@ -16,7 +16,21 @@ test('database migrations include the initial schema before feature migrations',
     '202607220001_secure_memory_chunks.sql',
     '202607230000_add_external_api_quotas.sql',
     '202607230001_add_upload_quotas.sql',
+    '202607230002_restrict_message_roles.sql',
   ]);
+});
+
+test('message role migration prevents authenticated clients from forging AI history', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607230002_restrict_message_roles.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /drop policy if exists "users can create messages for their own profiles"/);
+  assert.match(sql, /for insert\s+to authenticated/);
+  assert.match(sql, /messages\.user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /messages\.role = 'user'/);
+  assert.match(sql, /profile\.user_id = \(select auth\.uid\(\)\)/);
 });
 
 test('upload quota migration limits signed upload requests by count and bytes', () => {

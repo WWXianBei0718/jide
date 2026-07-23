@@ -41,6 +41,7 @@ test('account deletion requires authentication, recent verification, and explici
 
   assert.match(accountApi, /const user = await authenticate\(req, res\)/);
   assert.match(accountApi, /hasRecentAuthentication\(user\.accessToken\)/);
+  assert.match(accountApi, /from\('external_api_usage_events'\)\.delete\(\)\.eq\('user_id', user\.id\)/);
   assert.match(accountApi, /confirmation !== ACCOUNT_DELETE_CONFIRMATION/);
   assert.match(dashboard, /supabase\.auth\.signInWithPassword/);
   assert.match(dashboard, /永久删除账号/);
@@ -71,6 +72,20 @@ test('chat page hides the composer when the profile is unavailable', () => {
   assert.match(chat, /if \(loading \|\| !user \|\| isProfileLoading\)/);
   assert.match(chat, /if \(!profile\) \{/);
   assert.match(chat, /记忆体不存在或你无权访问/);
+});
+
+test('chat API saves provider replies through the trusted server boundary', () => {
+  const chatApi = readFileSync(
+    path.join(process.cwd(), 'src', 'pages', 'api', 'chat.ts'),
+    'utf8'
+  );
+
+  assert.match(chatApi, /const isOwner = await verifyProfileOwnership/);
+  assert.match(
+    chatApi,
+    /const \{ data: assistantMessage, error: assistantMessageError \} = await adminSupabase/
+  );
+  assert.match(chatApi, /role: 'assistant'/);
 });
 
 test('billable voice endpoints enforce persistent quota and safe provider boundaries', () => {

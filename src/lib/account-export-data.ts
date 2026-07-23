@@ -95,6 +95,7 @@ export async function collectAccountExport(
     consents,
     voiceCloningJobs,
     chatUsageEvents,
+    externalApiUsageEvents,
   ] = await Promise.all([
     readAllPages((from, to) => byProfile(
       'memory_materials',
@@ -159,6 +160,15 @@ export async function collectAccountExport(
         .order('id', { ascending: true })
         .range(from, to)
     ),
+    readAllPages((from, to) =>
+      adminSupabase
+        .from('external_api_usage_events')
+        .select('id, operation, units, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
   ]);
 
   const safeUploadedFiles = (uploadedFiles as UploadedFileRow[]).map((file) => ({
@@ -202,6 +212,7 @@ export async function collectAccountExport(
       consents,
       voiceCloningJobs,
       chatUsageEvents,
+      externalApiUsageEvents,
     }),
     privateFiles,
   };

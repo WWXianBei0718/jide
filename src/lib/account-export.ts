@@ -1,4 +1,4 @@
-export const ACCOUNT_EXPORT_VERSION = 'remember-account-export-v1';
+export const ACCOUNT_EXPORT_VERSION = 'remember-account-export-v2';
 
 export interface AccountExportInput {
   user: {
@@ -14,6 +14,7 @@ export interface AccountExportInput {
   consents: unknown[];
   voiceCloningJobs: unknown[];
   chatUsageEvents: unknown[];
+  externalApiUsageEvents: unknown[];
 }
 
 export interface AccountExportArchive extends AccountExportInput {

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { beginApiRequest, logApiError } from '@/lib/api-observability';
+import { adminSupabase } from '@/lib/admin-supabase';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { resolveChatOptions } from '@/lib/chat-policy';
 import { consumeChatQuota } from '@/lib/chat-rate-limit';
@@ -185,7 +186,7 @@ export default async function handler(
 
     if (data.choices && data.choices[0]?.message?.content) {
       const content = data.choices[0].message.content as string;
-      const { data: assistantMessage, error: assistantMessageError } = await user.client
+      const { data: assistantMessage, error: assistantMessageError } = await adminSupabase
         .from('messages')
         .insert({
           memory_profile_id: profileId,

@@ -81,6 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       adminSupabase.from('uploaded_files').delete().eq('user_id', user.id),
       adminSupabase.from('consents').delete().eq('user_id', user.id),
       adminSupabase.from('chat_usage_events').delete().eq('user_id', user.id),
+      adminSupabase.from('external_api_usage_events').delete().eq('user_id', user.id),
     ];
     for (const deletion of tableDeletes) {
       const { error } = await deletion;

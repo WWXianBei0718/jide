@@ -110,7 +110,7 @@ flowchart LR
 | 缺少安全审计 | 目前主要使用 `console.error` | 高 | 建立仅元数据、追加写、可告警的 `security_audit_events` |
 | 删除不覆盖供应商与对象存储 | 数据库级联只能删除表记录 | 严重 | 删除编排任务、供应商删除 API、对象删除、向量/缓存删除、重试和回执 |
 | RLS 仅存在于 SQL 文件，缺少部署验真测试 | 无迁移版本和 RLS 自动测试 | 高 | 版本化迁移；每表/每角色正反向授权测试；生产 Security Advisor 检查 |
-| 消息角色可由浏览器直接写入 | 当前 RLS 只校验资料归属 | 高 | 用户只能创建 `role=user`；`assistant/system` 只允许受控服务写入 |
+| 消息角色伪造 | 第 8 份迁移限制客户端只能插入 `role=user`；AI 回复由验证人物归属后的服务端写入 | 低 | 保持 RLS 回归测试，并将服务端高权限写入限制在单一插入点 |
 | CSP 仍允许内联脚本与样式 | 已部署 CSP、HSTS、frame-ancestors、nosniff、Referrer-Policy 和 Permissions-Policy；生产禁用 `unsafe-eval` | 中 | 后续迁移到 nonce/hash CSP，逐步移除 `unsafe-inline` |
 | 内部测试工具被误发布 | `/api/assessment`、`/self-test`、`/test-chat`、`/test-eval` 已在生产返回 404 | 低 | 保持自动门禁；未来如需预发布使用，改为管理员强认证而非公开开关 |
 | 供应商保留和跨境风险未闭环 | OpenAI/ElevenLabs 调用无同意门 | 严重 | PIPIA/DPIA、DPA、区域评估、ZDR/最短保留、退出与删除流程 |

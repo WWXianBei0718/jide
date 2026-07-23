@@ -19,11 +19,13 @@ test('builds a versioned portable export without changing supplied records', () 
     consents: [],
     voiceCloningJobs: [],
     chatUsageEvents: [],
+    externalApiUsageEvents: [{ operation: 'tts', units: 12 }],
   }, '2026-07-23T12:00:00.000Z');
 
   assert.equal(archive.exportVersion, ACCOUNT_EXPORT_VERSION);
   assert.equal(archive.exportedAt, '2026-07-23T12:00:00.000Z');
   assert.equal(archive.profiles, profiles);
+  assert.deepEqual(archive.externalApiUsageEvents, [{ operation: 'tts', units: 12 }]);
   assert.match(archive.notice.fileContent, /不包含/);
   assert.match(archive.notice.derivedVectors, /Embedding/);
 });
