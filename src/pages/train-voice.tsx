@@ -9,7 +9,7 @@ export default function TrainVoicePage() {
   const router = useRouter();
   const { profileId } = router.query;
   
-  const [profile, setProfile] = useState<{ name: string; voice_id: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ name: string; voice_ready: boolean } | null>(null);
   const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [isTraining, setIsTraining] = useState(false);
   const [error, setError] = useState('');
@@ -173,7 +173,7 @@ export default function TrainVoicePage() {
           <p className="text-warm-600">为 {profile?.name} 创建声音克隆，让记忆更加生动</p>
         </div>
 
-        {profile?.voice_id && (
+        {profile?.voice_ready && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-green-700">✓ 语音已训练完成，可以在聊天中使用</p>
           </div>

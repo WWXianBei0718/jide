@@ -4,6 +4,20 @@ import { adminSupabase } from '@/lib/admin-supabase';
 import { hasRecentAuthentication, storageDeletionTargets, type DeletableUpload } from '@/lib/account-deletion';
 import { deleteElevenLabsVoices, deleteStorageTargets } from '@/lib/external-resource-deletion';
 
+const PUBLIC_PROFILE_FIELDS =
+  'id, user_id, name, relation, gender, birth_date, avatar_url, short_description, voice_id, created_at, updated_at';
+
+function publicProfile<T extends { user_id?: unknown; voice_id?: unknown }>(profile: T) {
+  const safeProfile = { ...profile };
+  const voiceId = safeProfile.voice_id;
+  delete safeProfile.user_id;
+  delete safeProfile.voice_id;
+  return {
+    ...safeProfile,
+    voice_ready: typeof voiceId === 'string' && Boolean(voiceId),
+  };
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -35,7 +49,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, user: Authen
       }
       const { data: profile, error } = await user.client
         .from('memory_profiles')
-        .select('*')
+        .select(PUBLIC_PROFILE_FIELDS)
         .eq('id', id)
         .eq('user_id', user.id)
         .single();
@@ -44,11 +58,11 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, user: Authen
         return res.status(404).json({ error: 'Profile not found' });
       }
 
-      return res.status(200).json(profile);
+      return res.status(200).json(publicProfile(profile));
     } else {
       const { data: profiles, error } = await user.client
         .from('memory_profiles')
-        .select('*')
+        .select(PUBLIC_PROFILE_FIELDS)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -56,7 +70,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, user: Authen
         return res.status(500).json({ error: 'Failed to fetch profiles' });
       }
 
-      return res.status(200).json(profiles);
+      return res.status(200).json((profiles || []).map(publicProfile));
     }
   } catch {
     return res.status(500).json({ error: 'Failed to fetch profiles' });
@@ -85,14 +99,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, user: Authe
         birth_date: birth_date || null,
         short_description: short_description || null,
       })
-      .select()
+      .select(PUBLIC_PROFILE_FIELDS)
       .single();
 
     if (error) {
       return res.status(500).json({ error: 'Failed to create profile' });
     }
 
-    return res.status(201).json(profile);
+    return res.status(201).json(publicProfile(profile));
   } catch {
     return res.status(500).json({ error: 'Failed to create profile' });
   }
@@ -140,14 +154,14 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, user: Authen
       .update(updates)
       .eq('id', id)
       .eq('user_id', user.id)
-      .select()
+      .select(PUBLIC_PROFILE_FIELDS)
       .single();
 
     if (error) {
       return res.status(500).json({ error: 'Failed to update profile' });
     }
 
-    return res.status(200).json(profile);
+    return res.status(200).json(publicProfile(profile));
   } catch {
     return res.status(500).json({ error: 'Failed to update profile' });
   }

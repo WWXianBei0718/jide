@@ -168,7 +168,7 @@ export default function ProfileDetailPage() {
                 onClick={() => router.push(`/train-voice?profileId=${profile.id}`)}
                 className="px-6 py-3 border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 transition font-medium"
               >
-                {profile.voice_id ? '更新声音' : '训练声音'}
+                {profile.voice_ready ? '更新声音' : '训练声音'}
               </button>
             </div>
 

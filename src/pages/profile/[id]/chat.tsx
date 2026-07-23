@@ -130,7 +130,7 @@ export default function ChatPage() {
   };
 
   const handleSynthesize = async (message: Message) => {
-    if (!id || !profile?.voice_id || !message.id) return;
+    if (!id || !profile?.voice_ready || !message.id) return;
     setAudioLoadingId(message.id);
     setAudioError('');
     try {
@@ -226,7 +226,7 @@ export default function ChatPage() {
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                    {message.role === 'assistant' && profile?.voice_id && (
+                    {message.role === 'assistant' && profile?.voice_ready && (
                       <div className="mt-3">
                         {audioUrls[message.id] ? (
                           <audio src={audioUrls[message.id]} controls className="max-w-full h-9">

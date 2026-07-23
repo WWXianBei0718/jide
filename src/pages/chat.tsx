@@ -16,7 +16,7 @@ export default function ChatPage() {
   const router = useRouter();
   const { profileId } = router.query;
   
-  const [profile, setProfile] = useState<{ name: string; voice_id: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ name: string; voice_ready: boolean } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +75,7 @@ export default function ChatPage() {
       if (response.ok && data.content) {
         let audioUrl: string | undefined;
         
-        if (profile?.voice_id) {
+        if (profile?.voice_ready) {
           try {
             const audioResponse = await fetch('/api/voice-synthesize', {
               method: 'POST',
@@ -190,7 +190,7 @@ export default function ChatPage() {
               <div className="text-center py-12">
                 <p className="text-warm-500">开始与 {profile?.name} 对话吧</p>
                 <p className="text-sm text-warm-400 mt-2">
-                  {profile?.voice_id ? '语音已就绪，可以播放回复' : '语音尚未训练，仅支持文字回复'}
+                  {profile?.voice_ready ? '语音已就绪，可以播放回复' : '语音尚未训练，仅支持文字回复'}
                 </p>
               </div>
             ) : (

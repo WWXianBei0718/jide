@@ -1,13 +1,12 @@
 export interface MemoryProfile {
   id: string;
-  user_id: string;
   name: string;
   relation: string;
   gender: string | null;
   birth_date: string | null;
   avatar_url: string | null;
   short_description: string | null;
-  voice_id: string | null;
+  voice_ready: boolean;
   created_at: string;
   updated_at: string;
 }

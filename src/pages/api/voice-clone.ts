@@ -195,7 +195,7 @@ export default async function handler(
     }).in('id', uniqueUploadIds).eq('user_id', user.id);
 
     return res.status(200).json({
-      voice_id: data.voice_id,
+      voice_ready: true,
       name: data.name,
       message: cleanupFailed ? '语音克隆创建成功，原始样本已封锁并等待后台重试清理' : '语音克隆创建成功',
     });
