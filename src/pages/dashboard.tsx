@@ -7,7 +7,7 @@ export default function DashboardPage() {
   const { user, loading, signOut, getToken } = useAuth();
   const [profiles, setProfiles] = useState<MemoryProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportingMode, setExportingMode] = useState<'json' | 'zip' | null>(null);
   const [privacyMessage, setPrivacyMessage] = useState('');
   const router = useRouter();
   const redirectRef = useRef(false);
@@ -45,20 +45,24 @@ export default function DashboardPage() {
     router.push('/');
   };
 
-  const handleExport = async () => {
-    setIsExporting(true);
+  const handleExport = async (format: 'json' | 'zip') => {
+    setExportingMode(format);
     setPrivacyMessage('');
     try {
       const token = await getToken();
       if (!token) throw new Error('登录已失效，请重新登录');
-      const response = await fetch('/api/account-export', {
+      const response = await fetch(
+        format === 'zip' ? '/api/account-export-archive' : '/api/account-export',
+        {
         headers: { Authorization: `Bearer ${token}` },
-      });
+        }
+      );
       if (!response.ok) throw new Error('暂时无法导出，请稍后重试');
 
       const blob = await response.blob();
       const disposition = response.headers.get('Content-Disposition') || '';
-      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || 'remember-account-export.json';
+      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] ||
+        `remember-account-export.${format}`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -67,11 +71,15 @@ export default function DashboardPage() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      setPrivacyMessage('结构化数据已导出。私有图片、音频、视频和 PDF 正文暂不包含在此文件中。');
+      setPrivacyMessage(
+        format === 'zip'
+          ? '完整压缩包已导出，请妥善保管其中的私人资料。'
+          : '结构化数据已导出。私有文件正文可通过完整压缩包导出。'
+      );
     } catch (error) {
       setPrivacyMessage(error instanceof Error ? error.message : '导出失败');
     } finally {
-      setIsExporting(false);
+      setExportingMode(null);
     }
   };
 
@@ -188,14 +196,22 @@ export default function DashboardPage() {
           </p>
           <button
             type="button"
-            onClick={handleExport}
-            disabled={isExporting}
+            onClick={() => handleExport('json')}
+            disabled={exportingMode !== null}
             className="mt-4 px-4 py-2 border border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 disabled:opacity-50"
           >
-            {isExporting ? '正在整理数据…' : '导出我的结构化数据'}
+            {exportingMode === 'json' ? '正在整理数据…' : '导出结构化数据'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('zip')}
+            disabled={exportingMode !== null}
+            className="mt-4 ml-3 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          >
+            {exportingMode === 'zip' ? '正在打包私有文件…' : '导出完整压缩包'}
           </button>
           <p className="text-xs text-warm-500 mt-3">
-            当前导出不包含图片、音频、视频和 PDF 文件正文；完整文件压缩包仍在开发中。
+            完整压缩包包含当前可用的图片、音频、视频和 PDF，单次上限为 100 个文件或 100MB。
           </p>
           {privacyMessage && (
             <p className="text-sm text-warm-700 mt-3" role="status">{privacyMessage}</p>

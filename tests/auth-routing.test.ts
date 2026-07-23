@@ -31,8 +31,8 @@ test('account export is authenticated and honestly labels excluded file bodies',
 
   assert.match(exportApi, /const user = await authenticate\(req, res\)/);
   assert.match(exportApi, /Cache-Control', 'no-store'/);
-  assert.match(dashboard, /导出我的结构化数据/);
-  assert.match(dashboard, /不包含图片、音频、视频和 PDF 文件正文/);
+  assert.match(dashboard, /导出结构化数据/);
+  assert.match(dashboard, /导出完整压缩包/);
 });
 
 test('materials page hides controls when the profile is unavailable', () => {
