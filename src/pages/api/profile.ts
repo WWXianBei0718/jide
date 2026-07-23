@@ -53,7 +53,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, user: Authen
         .order('created_at', { ascending: false });
 
       if (error) {
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: 'Failed to fetch profiles' });
       }
 
       return res.status(200).json(profiles);
@@ -89,7 +89,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, user: Authe
       .single();
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: 'Failed to create profile' });
     }
 
     return res.status(201).json(profile);
@@ -144,7 +144,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, user: Authen
       .single();
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: 'Failed to update profile' });
     }
 
     return res.status(200).json(profile);
