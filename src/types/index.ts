@@ -47,12 +47,8 @@ export interface Conversation {
 
 export interface Message {
   id: string;
-  conversation_id: string | null;
-  memory_profile_id: string;
-  user_id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  retrieved_context: string | null;
   created_at: string;
 }
 

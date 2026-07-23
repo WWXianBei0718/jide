@@ -86,7 +86,7 @@ export default async function handler(
         role: 'user',
         content: message.trim(),
       })
-      .select()
+      .select('id, role, content, created_at')
       .single();
 
     if (userMessageError || !savedUserMessage) {
@@ -207,7 +207,7 @@ export default async function handler(
             conversationMessageCount: conversationContext.length,
           }),
         })
-        .select()
+        .select('id, role, content, created_at')
         .single();
 
       if (assistantMessageError || !assistantMessage) {

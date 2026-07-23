@@ -73,12 +73,8 @@ export default function ChatPage() {
 
     const userMessage: Message = {
       id: pendingId,
-      conversation_id: '',
-      memory_profile_id: id as string,
-      user_id: user.id,
       role: 'user',
       content: messageText,
-      retrieved_context: null,
       created_at: new Date().toISOString(),
     };
 
@@ -109,12 +105,8 @@ export default function ChatPage() {
       console.error('Error sending message:', error);
       setMessages((prev) => [...prev, {
         id: `error-${Date.now()}`,
-        conversation_id: '',
-        memory_profile_id: id as string,
-        user_id: user.id,
         role: 'assistant',
         content: '抱歉，我现在无法回答您的问题，请稍后再试。',
-        retrieved_context: null,
         created_at: new Date().toISOString(),
       }]);
     } finally {

@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { data, error } = await user.client
     .from('messages')
-    .select('*')
+    .select('id, role, content, created_at')
     .eq('memory_profile_id', profileId)
     .order('created_at', { ascending: true });
 
