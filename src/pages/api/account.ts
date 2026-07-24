@@ -74,22 +74,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const tableDeletes = [
-      adminSupabase.from('messages').delete().eq('user_id', user.id),
-      adminSupabase.from('conversations').delete().eq('user_id', user.id),
-      adminSupabase.from('memory_profiles').delete().eq('user_id', user.id),
-      adminSupabase.from('uploaded_files').delete().eq('user_id', user.id),
-      adminSupabase.from('consents').delete().eq('user_id', user.id),
-      adminSupabase.from('chat_usage_events').delete().eq('user_id', user.id),
-      adminSupabase.from('external_api_usage_events').delete().eq('user_id', user.id),
-    ];
-    for (const deletion of tableDeletes) {
-      const { error } = await deletion;
-      if (error) {
-        return res.status(500).json({
-          error: '部分数据清理失败，账号尚未删除，请联系支持或稍后重试',
-        });
-      }
+    const { error: accountDataDeleteError } = await adminSupabase.rpc(
+      'delete_user_owned_account_data',
+      { p_user_id: user.id }
+    );
+    if (accountDataDeleteError) {
+      return res.status(500).json({
+        error: '账号数据库清理失败，数据库变更已回滚，请联系支持或稍后重试',
+      });
     }
 
     const { error: authDeleteError } = await adminSupabase.auth.admin.deleteUser(user.id);

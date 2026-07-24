@@ -18,7 +18,22 @@ test('database migrations include the initial schema before feature migrations',
     '202607230001_add_upload_quotas.sql',
     '202607230002_restrict_message_roles.sql',
     '202607230003_add_embedding_quotas.sql',
+    '202607240000_atomic_account_deletion.sql',
   ]);
+});
+
+test('account deletion migration removes user-owned rows in one service-only transaction', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607240000_atomic_account_deletion.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /create or replace function public\.delete_user_owned_account_data\(p_user_id uuid\)/);
+  assert.match(sql, /delete from public\.messages where user_id = p_user_id/);
+  assert.match(sql, /delete from public\.memory_profiles where user_id = p_user_id/);
+  assert.match(sql, /delete from public\.external_api_usage_events where user_id = p_user_id/);
+  assert.match(sql, /revoke all on function public\.delete_user_owned_account_data\(uuid\) from public, anon, authenticated/);
+  assert.match(sql, /grant execute on function public\.delete_user_owned_account_data\(uuid\) to service_role/);
 });
 
 test('embedding quota migration limits indexing requests and source characters', () => {
