@@ -83,7 +83,7 @@ export default async function handler(
     });
 
     if (!response.ok) {
-      logApiError(requestContext, 'elevenlabs.tts_failed', {
+      await logApiError(requestContext, 'elevenlabs.tts_failed', {
         providerStatus: response.status,
       });
       return res.status(502).json({ error: '声音供应商暂时无法生成语音' });
@@ -108,7 +108,7 @@ export default async function handler(
     res.setHeader('Content-Disposition', 'attachment; filename="speech.mp3"');
     res.send(Buffer.from(audioBuffer));
   } catch (error) {
-    logApiError(requestContext, 'voice_synthesis.request_failed', {
+    await logApiError(requestContext, 'voice_synthesis.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
     });
     return res.status(500).json({ error: 'Failed to synthesize speech' });

@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     return res.status(200).send(JSON.stringify(archive, null, 2));
   } catch (error) {
-    logApiError(requestContext, 'account_export.request_failed', {
+    await logApiError(requestContext, 'account_export.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
     });
     return res.status(500).json({ error: '无法完整导出数据，请稍后重试' });

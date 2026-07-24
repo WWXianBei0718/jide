@@ -151,7 +151,7 @@ export default async function handler(
     const data = await response.json();
 
     if (!response.ok) {
-      logApiError(requestContext, 'elevenlabs.voice_clone_failed', {
+      await logApiError(requestContext, 'elevenlabs.voice_clone_failed', {
         providerStatus: response.status,
       });
       return res.status(502).json({ error: '声音供应商暂时无法创建声音模型' });
@@ -172,7 +172,7 @@ export default async function handler(
         [data.voice_id],
         process.env.ELEVENLABS_API_KEY
       );
-      logApiError(requestContext, 'voice_clone.persistence_failed', {
+      await logApiError(requestContext, 'voice_clone.persistence_failed', {
         outcome: rollback.ok ? 'provider_copy_removed' : 'manual_cleanup_required',
       });
       return res.status(502).json({
@@ -200,7 +200,7 @@ export default async function handler(
       message: cleanupFailed ? '语音克隆创建成功，原始样本已封锁并等待后台重试清理' : '语音克隆创建成功',
     });
   } catch (error) {
-    logApiError(requestContext, 'voice_clone.request_failed', {
+    await logApiError(requestContext, 'voice_clone.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
     });
     return res.status(500).json({ error: 'Failed to create voice clone' });

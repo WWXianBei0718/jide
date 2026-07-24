@@ -100,7 +100,7 @@ export default async function handler(
       .single();
 
     if (profileError || !profile) {
-      logApiError(requestContext, 'profile.fetch_failed', {
+      await logApiError(requestContext, 'profile.fetch_failed', {
         outcome: profileError ? 'database_error' : 'not_found',
       });
       return res.status(404).json({ error: 'Profile not found' });
@@ -115,7 +115,7 @@ export default async function handler(
       .limit(MAX_RETRIEVAL_MATERIALS);
 
     if (materialsError) {
-      logApiError(requestContext, 'materials.fetch_failed', {
+      await logApiError(requestContext, 'materials.fetch_failed', {
         outcome: 'lexical_context_unavailable',
       });
     }
@@ -128,7 +128,7 @@ export default async function handler(
       .limit(12);
 
     if (recentMessagesError) {
-      logApiError(requestContext, 'conversation.fetch_failed', {
+      await logApiError(requestContext, 'conversation.fetch_failed', {
         outcome: 'history_unavailable',
       });
     }
@@ -173,7 +173,7 @@ export default async function handler(
     const data = response.data;
     
     if (!response.ok) {
-      logApiError(requestContext, 'openai.request_failed', {
+      await logApiError(requestContext, 'openai.request_failed', {
         providerStatus: response.status,
       });
       return res.status(response.status).json({
@@ -227,7 +227,7 @@ export default async function handler(
       });
     }
   } catch (error) {
-    logApiError(requestContext, 'chat.request_failed', {
+    await logApiError(requestContext, 'chat.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
     });
     return res.status(500).json({
@@ -282,7 +282,7 @@ async function retrieveVectorChunks(
     }));
   } catch (error) {
     if (requestContext) {
-      logApiError(requestContext, 'memory.vector_unavailable', {
+      await logApiError(requestContext, 'memory.vector_unavailable', {
         errorName: error instanceof Error ? error.name : 'unknown',
         outcome: 'lexical_fallback',
       });

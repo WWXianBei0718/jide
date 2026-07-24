@@ -21,6 +21,7 @@ test('service-role client imports stay inside the reviewed server allowlist', ()
 
   assert.deepEqual(importers, [
     'src/lib/account-export-data.ts',
+    'src/lib/api-observability.ts',
     'src/lib/expired-upload-cleanup.ts',
     'src/lib/memory-indexing.ts',
     'src/pages/api/account-export-archive.ts',

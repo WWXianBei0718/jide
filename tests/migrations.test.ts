@@ -19,6 +19,7 @@ test('database migrations include the initial schema before feature migrations',
     '202607230002_restrict_message_roles.sql',
     '202607230003_add_embedding_quotas.sql',
     '202607240000_atomic_account_deletion.sql',
+    '202607240001_add_security_audit_events.sql',
   ]);
 });
 
@@ -34,6 +35,21 @@ test('account deletion migration removes user-owned rows in one service-only tra
   assert.match(sql, /delete from public\.external_api_usage_events where user_id = p_user_id/);
   assert.match(sql, /revoke all on function public\.delete_user_owned_account_data\(uuid\) from public, anon, authenticated/);
   assert.match(sql, /grant execute on function public\.delete_user_owned_account_data\(uuid\) to service_role/);
+});
+
+test('security audit migration stores only allowlisted operational metadata', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607240001_add_security_audit_events.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /create table if not exists public\.security_audit_events/);
+  assert.match(sql, /request_id text not null/);
+  assert.match(sql, /provider_status smallint/);
+  assert.match(sql, /enable row level security/);
+  assert.match(sql, /revoke all on table public\.security_audit_events from public, anon, authenticated/);
+  assert.match(sql, /revoke all on sequence public\.security_audit_events_id_seq from public, anon, authenticated/);
+  assert.doesNotMatch(sql, /user_id|profile_id|content|message|file_path/);
 });
 
 test('embedding quota migration limits indexing requests and source characters', () => {

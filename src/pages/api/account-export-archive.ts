@@ -56,13 +56,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
 
     const zip = new ZipArchive({ zlib: { level: 6 } });
-    zip.on('warning', (warning) => {
-      logApiError(requestContext, 'account_export.archive_warning', {
+    zip.on('warning', async (warning) => {
+      await logApiError(requestContext, 'account_export.archive_warning', {
         errorName: warning.name,
       });
     });
-    zip.on('error', (error) => {
-      logApiError(requestContext, 'account_export.archive_failed', {
+    zip.on('error', async (error) => {
+      await logApiError(requestContext, 'account_export.archive_failed', {
         errorName: error.name,
       });
       res.destroy();
@@ -87,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: '私有文件超过当前单次导出的 100 个文件或 100MB 限制，请等待大容量异步导出功能',
       });
     }
-    logApiError(requestContext, 'account_export_archive.request_failed', {
+    await logApiError(requestContext, 'account_export_archive.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
       outcome: reason === 'private_file_download_failed'
         || reason === 'private_file_size_mismatch'

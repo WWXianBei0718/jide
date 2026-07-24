@@ -97,7 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       deletedFileCount: storageDeletion.deletedCount,
     });
   } catch (error) {
-    logApiError(requestContext, 'account_deletion.request_failed', {
+    await logApiError(requestContext, 'account_deletion.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
     });
     return res.status(500).json({ error: '账号删除未完成，请稍后重试' });

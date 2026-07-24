@@ -29,7 +29,7 @@ export default async function handler(
       .not('voice_id', 'is', null);
 
     if (error) {
-      logApiError(requestContext, 'voices.fetch_failed', {
+      await logApiError(requestContext, 'voices.fetch_failed', {
         outcome: 'database_error',
       });
       return res.status(500).json({ error: 'Failed to fetch user voice status' });
@@ -45,7 +45,7 @@ export default async function handler(
       })),
     });
   } catch (error) {
-    logApiError(requestContext, 'voices.request_failed', {
+    await logApiError(requestContext, 'voices.request_failed', {
       errorName: error instanceof Error ? error.name : 'unknown',
     });
     return res.status(500).json({ error: 'Failed to fetch user voice status' });

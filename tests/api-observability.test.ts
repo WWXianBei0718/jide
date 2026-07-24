@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import {
   beginApiRequest,
+  buildSecurityAuditRecord,
   logApiError,
 } from '../src/lib/api-observability';
 
@@ -47,13 +48,13 @@ test('replaces unsafe request ids instead of reflecting control characters', () 
   assert.doesNotMatch(context.requestId, /bad|header/);
 });
 
-test('structured API error logs contain only allowlisted operational fields', () => {
+test('structured API error logs contain only allowlisted operational fields', async () => {
   const messages: string[] = [];
   const originalConsoleError = console.error;
   console.error = (message?: unknown) => messages.push(String(message));
 
   try {
-    logApiError(
+    await logApiError(
       { requestId: 'request_12345678', route: 'api.chat' },
       'openai.request_failed',
       {
@@ -76,4 +77,27 @@ test('structured API error logs contain only allowlisted operational fields', ()
     providerStatus: 429,
     outcome: 'retry_later',
   });
+});
+
+test('persistent audit records use database field names and exclude user content', () => {
+  assert.deepEqual(
+    buildSecurityAuditRecord(
+      { requestId: 'request_12345678', route: 'api.voice_clone' },
+      'elevenlabs.voice_clone_failed',
+      {
+        errorName: 'TimeoutError',
+        providerStatus: 502,
+        outcome: 'retry_later',
+      }
+    ),
+    {
+      level: 'error',
+      event: 'elevenlabs.voice_clone_failed',
+      request_id: 'request_12345678',
+      route: 'api.voice_clone',
+      error_name: 'TimeoutError',
+      provider_status: 502,
+      outcome: 'retry_later',
+    }
+  );
 });
