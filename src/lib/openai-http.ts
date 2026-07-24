@@ -7,6 +7,43 @@ interface JsonHttpResult<T> {
   data: T;
 }
 
+export const OPENAI_REQUEST_TIMEOUT_MS = 60_000;
+export const MAX_OPENAI_JSON_RESPONSE_BYTES = 10 * 1024 * 1024;
+
+function parseJsonBuffer<T>(buffer: Buffer): T {
+  return (buffer.length ? JSON.parse(buffer.toString('utf8')) : {}) as T;
+}
+
+async function readBoundedFetchBody(response: Response): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (
+    Number.isFinite(declaredLength)
+    && declaredLength > MAX_OPENAI_JSON_RESPONSE_BYTES
+  ) {
+    throw new Error('OpenAI response exceeded the size limit');
+  }
+
+  if (!response.body) return Buffer.alloc(0);
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_OPENAI_JSON_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error('OpenAI response exceeded the size limit');
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
+}
+
 export async function postOpenAiJson<T>(
   url: string,
   headers: Record<string, string>,
@@ -18,8 +55,13 @@ export async function postOpenAiJson<T>(
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(OPENAI_REQUEST_TIMEOUT_MS),
     });
-    return { ok: response.ok, status: response.status, data: await response.json() as T };
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: parseJsonBuffer<T>(await readBoundedFetchBody(response)),
+    };
   }
 
   const require = createRequire(import.meta.url);
@@ -38,24 +80,33 @@ export async function postOpenAiJson<T>(
       },
     }, (response) => {
       const chunks: Buffer[] = [];
-      response.on('data', (chunk: Buffer) => chunks.push(chunk));
+      let totalBytes = 0;
+      response.on('data', (chunk: Buffer) => {
+        totalBytes += chunk.byteLength;
+        if (totalBytes > MAX_OPENAI_JSON_RESPONSE_BYTES) {
+          request.destroy(new Error('OpenAI response exceeded the size limit'));
+          return;
+        }
+        chunks.push(chunk);
+      });
       response.on('end', () => {
         try {
-          const content = Buffer.concat(chunks).toString('utf8');
           resolve({
             ok: Boolean(response.statusCode && response.statusCode >= 200 && response.statusCode < 300),
             status: response.statusCode || 0,
-            data: (content ? JSON.parse(content) : {}) as T,
+            data: parseJsonBuffer<T>(Buffer.concat(chunks, totalBytes)),
           });
         } catch (error) {
           reject(error);
         }
       });
     });
-    request.setTimeout(60_000, () => request.destroy(new Error('OpenAI request timed out')));
+    request.setTimeout(
+      OPENAI_REQUEST_TIMEOUT_MS,
+      () => request.destroy(new Error('OpenAI request timed out'))
+    );
     request.on('error', reject);
     request.write(serializedBody);
     request.end();
   });
 }
-
