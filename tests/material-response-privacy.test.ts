@@ -15,9 +15,10 @@ test('material APIs return display fields without internal ownership or storage 
 
   assert.match(
     materialsApi,
-    /\.select\('id, type, title, content, metadata, created_at, uploaded_files\(id, file_name, file_type, file_size, status\)'\)/
+    /\.select\('id, type, title, content, metadata, created_at, uploaded_files\(id, file_name, file_type, file_size, status\), material_processing_jobs\(job_type, status, attempt_count, error_code, processor_version, queued_at, started_at, completed_at, updated_at\)'\)/
   );
   assert.doesNotMatch(materialsApi, /\.select\('\*, uploaded_files/);
+  assert.doesNotMatch(materialsApi, /material_processing_jobs\(id,/);
   assert.doesNotMatch(uploadCompleteApi, /\.select\('\*'\)/);
   assert.match(
     uploadCompleteApi,

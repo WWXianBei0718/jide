@@ -3,6 +3,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
 import type { MemoryProfile, MemoryMaterial } from '@/types';
+import {
+  materialProcessingMessage,
+  type MaterialProcessingSummary,
+} from '@/lib/material-processing';
 
 interface UploadedFileSummary {
   id: string;
@@ -14,6 +18,7 @@ interface UploadedFileSummary {
 
 interface MaterialWithFile extends MemoryMaterial {
   uploaded_files?: UploadedFileSummary | null;
+  material_processing_jobs?: MaterialProcessingSummary[];
 }
 
 type AddMode = 'text' | 'file';
@@ -183,7 +188,7 @@ export default function MaterialsPage() {
       setStatusMessage(
         completeResponse.status === 202
           ? '文件已进入隔离区，等待安全扫描后可用'
-          : '文件已通过基础校验并成为记忆资料'
+          : '文件已通过基础校验并安全保存，内容提取任务已排队'
       );
       await fetchMaterials();
     } catch (error) {
@@ -457,6 +462,7 @@ function MaterialCard({
   const indexingStatus = typeof material.metadata?.indexing_status === 'string'
     ? material.metadata.indexing_status
     : null;
+  const processingJob = material.material_processing_jobs?.[0] ?? null;
   return (
     <article className="bg-white rounded-xl shadow-sm p-6">
       <div className="flex items-start justify-between gap-4 mb-3">
@@ -483,6 +489,12 @@ function MaterialCard({
               {isRetrying ? '正在重试…' : '重新建立语义记忆'}
             </button>
           )}
+        </div>
+      )}
+
+      {material.type !== 'text' && (
+        <div className="mb-4">
+          <ContentProcessingStatus status={processingJob?.status ?? null} />
         </div>
       )}
 
@@ -515,6 +527,19 @@ function MaterialCard({
       <time className="text-warm-400 text-sm">{new Date(material.created_at).toLocaleString('zh-CN')}</time>
     </article>
   );
+}
+
+function ContentProcessingStatus({
+  status,
+}: {
+  status: MaterialProcessingSummary['status'] | null;
+}) {
+  const tone = status === 'failed' || status === 'blocked'
+    ? 'text-amber-700'
+    : status === 'extracted'
+      ? 'text-green-700'
+      : 'text-warm-600';
+  return <span className={`text-sm ${tone}`}>{materialProcessingMessage(status)}</span>;
 }
 
 function IndexingStatus({ status }: { status: string | null }) {

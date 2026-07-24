@@ -75,7 +75,7 @@ async function getMaterials(req: NextApiRequest, res: NextApiResponse, user: Use
 
   const { data, error } = await user.client
     .from('memory_materials')
-    .select('id, type, title, content, metadata, created_at, uploaded_files(id, file_name, file_type, file_size, status)')
+    .select('id, type, title, content, metadata, created_at, uploaded_files(id, file_name, file_type, file_size, status), material_processing_jobs(job_type, status, attempt_count, error_code, processor_version, queued_at, started_at, completed_at, updated_at)')
     .eq('memory_profile_id', profileId)
     .order('created_at', { ascending: false });
 

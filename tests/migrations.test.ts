@@ -20,7 +20,27 @@ test('database migrations include the initial schema before feature migrations',
     '202607230003_add_embedding_quotas.sql',
     '202607240000_atomic_account_deletion.sql',
     '202607240001_add_security_audit_events.sql',
+    '202607240002_add_material_processing_jobs.sql',
   ]);
+});
+
+test('material processing migration separates file safety from extracted-content state', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607240002_add_material_processing_jobs.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /create table if not exists public\.material_processing_jobs/);
+  assert.match(sql, /foreign key \(material_id, memory_profile_id\)/);
+  assert.match(sql, /job_type in \('image_ocr', 'audio_transcription', 'video_transcription', 'document_text'\)/);
+  assert.match(sql, /status in \('pending', 'processing', 'extracted', 'failed', 'blocked'\)/);
+  assert.match(sql, /enable row level security/);
+  assert.match(sql, /grant select on table public\.material_processing_jobs to authenticated/);
+  assert.match(sql, /profile\.user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /revoke all on function public\.finalize_material_upload/);
+  assert.match(sql, /grant execute on function public\.finalize_material_upload[\s\S]*to service_role/);
+  assert.match(sql, /insert into public\.material_processing_jobs/);
+  assert.doesNotMatch(sql, /provider_response|raw_error|source_content/);
 });
 
 test('account deletion migration removes user-owned rows in one service-only transaction', () => {

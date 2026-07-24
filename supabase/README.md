@@ -13,10 +13,13 @@
 9. `202607230003_add_embedding_quotas.sql` 限制文字资料语义索引的请求次数和字符量。
 10. `202607240000_atomic_account_deletion.sql` 将账号业务数据清理合并为仅服务端可调用的数据库事务。
 11. `202607240001_add_security_audit_events.sql` 仅保存无正文、无用户标识的安全运行元数据。
+12. `202607240002_add_material_processing_jobs.sql` 将文件安全状态与 OCR、转写和文档解析状态分离，并为已安全发布的非文字资料建立待处理任务。
 
 新项目必须从第一条迁移开始执行。已有项目只执行尚未应用的迁移，不能重复手工拼接 SQL。每次执行后应记录迁移文件名和执行时间。
 
 `202607150001_secure_multimedia_uploads.sql` 会创建私有 `memory-quarantine`、`memory-assets` Bucket，扩展上传状态、同意证明字段和材料文件关联。未应用该迁移时，多媒体上传 API 不会工作。
+
+`202607240002_add_material_processing_jobs.sql` 只建立处理任务和状态边界，不执行 OCR、转写、文档解析、Embedding 或任何付费外部 API 调用。只有 `extracted` 状态才表示已经取得可索引文字；上传文件的 `ready` 仅表示文件通过当前安全发布条件。
 
 生产环境默认关闭文件上传。只有在以下条件满足后才设置：
 

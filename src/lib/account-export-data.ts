@@ -93,6 +93,7 @@ export async function collectAccountExport(
 
   const [
     materials,
+    materialProcessingJobs,
     memoryChunks,
     conversations,
     messages,
@@ -105,6 +106,12 @@ export async function collectAccountExport(
     readAllPages((from, to) => byProfile(
       'memory_materials',
       'id, memory_profile_id, type, title, content, uploaded_file_id, metadata, created_at',
+      from,
+      to
+    )),
+    readAllPages((from, to) => byProfile(
+      'material_processing_jobs',
+      'id, memory_profile_id, material_id, job_type, status, attempt_count, processor_version, queued_at, started_at, completed_at, created_at, updated_at',
       from,
       to
     )),
@@ -210,6 +217,7 @@ export async function collectAccountExport(
       user: { id: userId, email },
       profiles: sanitizeExportProfiles(profiles),
       materials,
+      materialProcessingJobs,
       memoryChunks,
       conversations,
       messages,
