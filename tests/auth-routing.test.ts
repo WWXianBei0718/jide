@@ -118,3 +118,13 @@ test('signed upload requests reserve persistent byte quota and clean expired gra
   assert.match(uploadRequestApi, /status\(429\)/);
   assert.match(uploadRequestApi, /status\(503\)/);
 });
+
+test('material embedding creation and retry consume persistent billable quota', () => {
+  const materialsApi = readPage('api', 'materials.ts');
+
+  assert.match(materialsApi, /consumeExternalApiQuota\(user\.client, 'embedding', material\.content\.length\)/);
+  assert.match(materialsApi, /consumeExternalApiQuota\(user\.client, 'embedding', data\.content\.length\)/);
+  assert.match(materialsApi, /Retry-After/);
+  assert.match(materialsApi, /status\(429\)/);
+  assert.match(materialsApi, /status\(503\)/);
+});

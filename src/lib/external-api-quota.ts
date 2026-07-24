@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const MAX_EXTERNAL_API_UNITS = 25 * 1024 * 1024;
 
-export type ExternalApiOperation = 'voice_clone' | 'tts' | 'upload';
+export type ExternalApiOperation = 'voice_clone' | 'tts' | 'upload' | 'embedding';
 export type ExternalApiLimitScope = 'burst' | 'daily_requests' | 'daily_units';
 
 interface ExternalApiQuotaRow {

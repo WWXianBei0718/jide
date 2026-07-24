@@ -10,6 +10,7 @@
 6. `202607230000_add_external_api_quotas.sql` 限制语音供应商调用。
 7. `202607230001_add_upload_quotas.sql` 限制上传次数和容量。
 8. `202607230002_restrict_message_roles.sql` 禁止客户端伪造 AI/System 消息。
+9. `202607230003_add_embedding_quotas.sql` 限制文字资料语义索引的请求次数和字符量。
 
 新项目必须从第一条迁移开始执行。已有项目只执行尚未应用的迁移，不能重复手工拼接 SQL。每次执行后应记录迁移文件名和执行时间。
 

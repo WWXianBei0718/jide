@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
+import { consumeExternalApiQuota } from '@/lib/external-api-quota';
 import { indexMemoryMaterial } from '@/lib/memory-indexing';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -39,6 +40,15 @@ async function retryMaterialIndexing(req: NextApiRequest, res: NextApiResponse, 
 
   if (material.type !== 'text' || typeof material.content !== 'string' || !material.content.trim()) {
     return res.status(400).json({ error: 'This material does not have indexable text yet' });
+  }
+
+  const quota = await consumeExternalApiQuota(user.client, 'embedding', material.content.length);
+  if (quota.status === 'unavailable') {
+    return res.status(503).json({ error: '语义索引额度保护暂时不可用，请稍后重试' });
+  }
+  if (quota.status === 'limited') {
+    res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+    return res.status(429).json({ error: '语义索引请求已达到当前测试额度，请稍后重试' });
   }
 
   const indexing = await indexMemoryMaterial({
@@ -105,13 +115,32 @@ async function createTextMaterial(req: NextApiRequest, res: NextApiResponse, use
 
   if (error || !data) return res.status(500).json({ error: 'Failed to create material' });
 
-  const indexing = await indexMemoryMaterial({
-    materialId: data.id,
-    profileId,
-    sourceType: 'text',
-    content: data.content,
-    metadata: data.metadata,
-  });
+  const quota = await consumeExternalApiQuota(user.client, 'embedding', data.content.length);
+  let indexing;
+  if (quota.status === 'allowed') {
+    indexing = await indexMemoryMaterial({
+      materialId: data.id,
+      profileId,
+      sourceType: 'text',
+      content: data.content,
+      metadata: data.metadata,
+    });
+  } else {
+    const reason = quota.status === 'limited'
+      ? 'embedding_quota_limited'
+      : 'embedding_quota_unavailable';
+    indexing = { status: 'failed' as const, chunkCount: 0, reason };
+    await user.client.from('memory_materials').update({
+      metadata: {
+        indexing_status: 'failed',
+        indexing_error: reason,
+        indexing_updated_at: new Date().toISOString(),
+      },
+    }).eq('id', data.id).eq('memory_profile_id', profileId);
+    if (quota.status === 'limited') {
+      res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+    }
+  }
 
   return res.status(201).json({
     id: data.id,

@@ -17,7 +17,22 @@ test('database migrations include the initial schema before feature migrations',
     '202607230000_add_external_api_quotas.sql',
     '202607230001_add_upload_quotas.sql',
     '202607230002_restrict_message_roles.sql',
+    '202607230003_add_embedding_quotas.sql',
   ]);
+});
+
+test('embedding quota migration limits indexing requests and source characters', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607230003_add_embedding_quotas.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /operation in \('voice_clone', 'tts', 'upload', 'embedding'\)/);
+  assert.match(sql, /requested_operation = 'embedding'/);
+  assert.match(sql, /burst_limit := 20/);
+  assert.match(sql, /daily_request_limit := 200/);
+  assert.match(sql, /daily_unit_limit := 4000000/);
+  assert.match(sql, /pg_advisory_xact_lock/);
 });
 
 test('message role migration prevents authenticated clients from forging AI history', () => {
