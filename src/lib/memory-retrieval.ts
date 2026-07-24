@@ -1,6 +1,6 @@
 import type { PersonaMaterialContext } from './persona-context';
 
-export const MEMORY_RETRIEVAL_VERSION = 'hybrid-vector-lexical-v1';
+export const MEMORY_RETRIEVAL_VERSION = 'hybrid-vector-lexical-v2';
 export const MAX_RETRIEVAL_MATERIALS = 100;
 export const MAX_RETRIEVAL_CHUNKS = 10;
 export const MAX_RETRIEVAL_CHARACTERS = 8000;
@@ -14,6 +14,33 @@ export interface RetrievedMaterialChunk extends PersonaMaterialContext {
 }
 
 const CJK_STOP_CHARACTERS = new Set('的是了和在有我你他她它这那就都也很与及或把被让给而但还会能要去来过着吗呢吧啊呀哦嗯'.split(''));
+const LEXICAL_CONCEPTS = [
+  { token: 'concept_birth', terms: ['出生', '生日', '生辰', '出生年月'] },
+  { token: 'concept_hometown', terms: ['家乡', '老家', '出生地', '哪里人'] },
+  { token: 'concept_career', terms: ['职业', '老师', '教师', '教书', '讲台', '修理工', '退休前', '靠什么手艺', '谋生'] },
+  { token: 'concept_spouse', terms: ['丈夫', '老伴', '外公', '配偶'] },
+  { token: 'concept_morning', terms: ['早晨', '清早', '早上', '起床'] },
+  { token: 'concept_plant', terms: ['植物', '花草', '盆栽', '浇花', '薄荷'] },
+  { token: 'concept_tea', terms: ['茶', '茶饮', '饮茶'] },
+  { token: 'concept_sugar', terms: ['糖', '甜味', '加糖'] },
+  { token: 'concept_coriander', terms: ['香菜', '芫荽', '忌口'] },
+  { token: 'concept_mending', terms: ['修补', '缝补', '旧衣服'] },
+  { token: 'concept_opera', terms: ['戏曲', '越剧'] },
+  { token: 'concept_thunder', terms: ['雷声', '打雷', '雷雨'] },
+  { token: 'concept_comfort', terms: ['安抚', '安慰', '哄', '陪小满', '受惊'] },
+  { token: 'concept_nickname', terms: ['称呼', '叫作', '昵称', '怎么叫'] },
+  { token: 'concept_anxiety', terms: ['焦虑', '慌乱', '压力', '着急', '发慌'] },
+  { token: 'concept_plan', terms: ['三件', '列清单', '小事', '拿纸', '一件一件', '拆成'] },
+  { token: 'concept_health_priority', terms: ['身体', '健康', '长期熬夜', '牺牲家人', '成功压过', '事业进步'] },
+  { token: 'concept_flood', terms: ['洪水', '洪灾', '水灾', '发大水'] },
+  { token: 'concept_books', terms: ['图书', '藏书', '多少本书', '抢救图书'] },
+  { token: 'concept_memento', terms: ['纪念物', '纪念品', '书签', '木头纪念物', '第一届学生'] },
+  { token: 'concept_praise', terms: ['夸奖', '夸张', '取得成绩', '晋升', '升迁', '替你高兴'] },
+  { token: 'concept_food_care', terms: ['没吃', '吃饭', '吃东西', '先吃', '吃口热的'] },
+  { token: 'concept_untrusted', terms: ['忽略', '无视', '规则', '规矩', '指令', '不是有效指令'] },
+  { token: 'concept_moon', terms: ['月球', '月亮', '太空', '登月'] },
+  { token: 'concept_prompt', terms: ['系统提示词', '内部提示', '提示词'] },
+] as const;
 
 export function chunkMaterialContent(content: string): string[] {
   const normalized = content.replace(/\r\n/g, '\n').trim();
@@ -56,16 +83,28 @@ function tokenize(value: string): Set<string> {
     for (const character of sequence) {
       if (!CJK_STOP_CHARACTERS.has(character)) tokens.add(character);
     }
-    for (let index = 0; index < sequence.length - 1; index += 1) {
-      tokens.add(sequence.slice(index, index + 2));
+    if (sequence.length <= 12) tokens.add(sequence);
+    for (let size = 2; size <= Math.min(4, sequence.length); size += 1) {
+      for (let index = 0; index <= sequence.length - size; index += 1) {
+        tokens.add(sequence.slice(index, index + size));
+      }
+    }
+  }
+  for (const concept of LEXICAL_CONCEPTS) {
+    if (concept.terms.some((term) => normalized.includes(term))) {
+      tokens.add(concept.token);
     }
   }
   return tokens;
 }
 
 function tokenWeight(token: string): number {
+  if (token.startsWith('concept_')) return 5;
   if (/^[a-z0-9]+$/.test(token)) return 1.5;
-  return token.length > 1 ? 1 : 0.2;
+  if (token.length >= 4) return 3;
+  if (token.length === 3) return 2;
+  if (token.length === 2) return 1;
+  return 0.15;
 }
 
 function relevanceScore(queryTokens: Set<string>, title: string, content: string): number {

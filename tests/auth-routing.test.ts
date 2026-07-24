@@ -128,3 +128,13 @@ test('material embedding creation and retry consume persistent billable quota', 
   assert.match(materialsApi, /status\(429\)/);
   assert.match(materialsApi, /status\(503\)/);
 });
+
+test('chat enters an explicit restricted mode instead of silently losing vector memory', () => {
+  const chatApi = readPage('api', 'chat.ts');
+
+  assert.match(chatApi, /vectorRetrieval\.status === 'unavailable'/);
+  assert.match(chatApi, /mode: 'memory_retrieval_unavailable'/);
+  assert.match(chatApi, /为避免引用错误资料，本次未生成回答/);
+  assert.match(chatApi, /'lexical-unindexed'/);
+  assert.doesNotMatch(chatApi, /'lexical-fallback'/);
+});

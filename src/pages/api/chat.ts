@@ -134,14 +134,23 @@ export default async function handler(
     }
 
     const lexicalMaterials = retrieveRelevantMaterialChunks(materials || [], message.trim());
-    const vectorMaterials = await retrieveVectorChunks(
+    const vectorRetrieval = await retrieveVectorChunks(
       user.client,
       profileId,
       message.trim(),
       requestContext
     );
+    if (vectorRetrieval.status === 'unavailable') {
+      return res.status(503).json({
+        error: '语义记忆暂时不可用。为避免引用错误资料，本次未生成回答，请稍后重试。',
+        mode: 'memory_retrieval_unavailable',
+      });
+    }
+    const vectorMaterials = vectorRetrieval.chunks;
     const retrievedMaterials = mergeRetrievedMaterialChunks(vectorMaterials, lexicalMaterials);
-    const retrievalStrategy = vectorMaterials.length > 0 ? 'vector+lexical' : 'lexical-fallback';
+    const retrievalStrategy = vectorRetrieval.status === 'ready'
+      ? 'vector+lexical'
+      : 'lexical-unindexed';
     const personaContext = buildPersonaPrompt(profile, retrievedMaterials);
     const conversationContext = prepareConversationContext(
       recentMessages && recentMessages.length > 0
@@ -246,12 +255,17 @@ interface VectorChunkRow {
   similarity: number;
 }
 
+type VectorRetrievalResult =
+  | { status: 'ready'; chunks: RetrievedMaterialChunk[] }
+  | { status: 'not_indexed'; chunks: [] }
+  | { status: 'unavailable'; chunks: [] };
+
 async function retrieveVectorChunks(
   client: SupabaseClient,
   profileId: string,
   query: string,
   requestContext?: ReturnType<typeof beginApiRequest>
-): Promise<RetrievedMaterialChunk[]> {
+): Promise<VectorRetrievalResult> {
   const { data: indexedChunks, error: indexedChunksError } = await client
     .from('memory_chunks')
     .select('id')
@@ -259,7 +273,15 @@ async function retrieveVectorChunks(
     .not('embedding', 'is', null)
     .limit(1);
 
-  if (indexedChunksError || !indexedChunks?.length) return [];
+  if (indexedChunksError) {
+    if (requestContext) {
+      await logApiError(requestContext, 'memory.vector_index_check_failed', {
+        outcome: 'restricted_mode',
+      });
+    }
+    return { status: 'unavailable', chunks: [] };
+  }
+  if (!indexedChunks?.length) return { status: 'not_indexed', chunks: [] };
 
   try {
     const [queryEmbedding] = await createEmbeddings([query]);
@@ -271,22 +293,25 @@ async function retrieveVectorChunks(
     });
     if (error) throw new Error('Vector memory search failed');
 
-    return ((data || []) as VectorChunkRow[]).map((row) => ({
-      id: row.material_id,
-      title: `${row.title}（语义片段 ${row.chunk_index + 1}）`,
-      type: row.source_type,
-      content: row.chunk_text,
-      chunkIndex: row.chunk_index,
-      totalChunks: 0,
-      relevanceScore: Number(row.similarity.toFixed(4)),
-    }));
+    return {
+      status: 'ready',
+      chunks: ((data || []) as VectorChunkRow[]).map((row) => ({
+        id: row.material_id,
+        title: `${row.title}（语义片段 ${row.chunk_index + 1}）`,
+        type: row.source_type,
+        content: row.chunk_text,
+        chunkIndex: row.chunk_index,
+        totalChunks: 0,
+        relevanceScore: Number(row.similarity.toFixed(4)),
+      })),
+    };
   } catch (error) {
     if (requestContext) {
       await logApiError(requestContext, 'memory.vector_unavailable', {
         errorName: error instanceof Error ? error.name : 'unknown',
-        outcome: 'lexical_fallback',
+        outcome: 'restricted_mode',
       });
     }
-    return [];
+    return { status: 'unavailable', chunks: [] };
   }
 }

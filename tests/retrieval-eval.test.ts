@@ -9,7 +9,7 @@ const dataset: RetrievalEvalDataset = {
   cases: [
     { id: 'hit-first', query: 'first', expectedMaterialIds: ['a'] },
     { id: 'hit-second', query: 'second', expectedMaterialIds: ['b'] },
-    { id: 'miss', query: 'miss', expectedMaterialIds: ['c'] },
+    { id: 'miss', query: 'miss', expectedMaterialIds: ['c'], split: 'holdout' },
   ],
 };
 
@@ -32,5 +32,9 @@ test('scores retrieval hit rate and relevant rank without counting duplicate chu
   assert.equal(score.top1Accuracy, 1 / 3);
   assert.equal(score.hitRateAtK, 2 / 3);
   assert.equal(score.meanReciprocalRank, 0.5);
+  assert.equal(score.splits.development.caseCount, 2);
+  assert.equal(score.splits.development.hitRateAtK, 1);
+  assert.equal(score.splits.holdout.caseCount, 1);
+  assert.equal(score.splits.holdout.hitRateAtK, 0);
   assert.deepEqual(score.cases.map((item) => item.firstRelevantRank), [1, 2, null]);
 });

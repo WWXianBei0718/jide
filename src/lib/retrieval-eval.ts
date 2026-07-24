@@ -5,6 +5,7 @@ export interface RetrievalEvalCase {
   id: string;
   query: string;
   expectedMaterialIds: string[];
+  split?: 'development' | 'holdout';
 }
 
 export interface RetrievalEvalDataset {
@@ -29,6 +30,12 @@ export interface RetrievalEvalScore {
   top1Accuracy: number;
   hitRateAtK: number;
   meanReciprocalRank: number;
+  splits: Record<string, {
+    caseCount: number;
+    top1Accuracy: number;
+    hitRateAtK: number;
+    meanReciprocalRank: number;
+  }>;
   cases: RetrievalCaseScore[];
 }
 
@@ -54,6 +61,24 @@ export function scoreRetrieval(
     };
   });
 
+  const splitNames = [...new Set(
+    dataset.cases.map((item) => item.split || 'development')
+  )];
+  const splits = Object.fromEntries(splitNames.map((split) => {
+    const splitCases = cases.filter((item) => (item.split || 'development') === split);
+    return [split, {
+      caseCount: splitCases.length,
+      top1Accuracy:
+        splitCases.filter((item) => item.firstRelevantRank === 1).length / splitCases.length,
+      hitRateAtK: splitCases.filter((item) => item.hit).length / splitCases.length,
+      meanReciprocalRank:
+        splitCases.reduce(
+          (sum, item) => sum + (item.firstRelevantRank ? 1 / item.firstRelevantRank : 0),
+          0
+        ) / splitCases.length,
+    }];
+  }));
+
   return {
     caseCount: cases.length,
     topK: safeTopK,
@@ -62,6 +87,7 @@ export function scoreRetrieval(
     meanReciprocalRank:
       cases.reduce((sum, item) => sum + (item.firstRelevantRank ? 1 / item.firstRelevantRank : 0), 0) /
       cases.length,
+    splits,
     cases,
   };
 }
