@@ -24,6 +24,14 @@ npm run check
 
 该命令依次运行 Lint、TypeScript、单元测试和 Next.js 生产构建。
 
+安全审计保留工具默认只做预览：
+
+```bash
+npm run audit:retention:dry
+```
+
+只有 `npm run audit:retention` 会分批删除超过 90 天的安全审计事件；该命令不读取人物资料、聊天内容或文件。
+
 人格评测使用完全虚构资料，默认有 1 美元硬上限：
 
 ```bash
