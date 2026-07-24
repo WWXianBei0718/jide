@@ -21,7 +21,22 @@ test('database migrations include the initial schema before feature migrations',
     '202607240000_atomic_account_deletion.sql',
     '202607240001_add_security_audit_events.sql',
     '202607240002_add_material_processing_jobs.sql',
+    '202607240003_harden_versioned_consents.sql',
   ]);
+});
+
+test('consent hardening migration makes the consent ledger server-write-only', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607240003_harden_versioned_consents.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /idx_consents_profile_type_created/);
+  assert.match(sql, /drop policy if exists "users can create their own consents"/);
+  assert.match(sql, /revoke insert, update, delete on table public\.consents from anon, authenticated/);
+  assert.match(sql, /grant select on table public\.consents to authenticated/);
+  assert.match(sql, /consents\.user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /profile\.user_id = \(select auth\.uid\(\)\)/);
 });
 
 test('material processing migration separates file safety from extracted-content state', () => {

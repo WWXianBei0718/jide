@@ -7,13 +7,13 @@ import type { MemoryMaterial } from '@/types';
 export type IndexableMaterialType = MemoryMaterial['type'];
 
 export interface MemoryIndexingResult {
-  status: 'ready' | 'skipped' | 'failed';
+  status: 'ready' | 'skipped' | 'failed' | 'blocked';
   chunkCount: number;
   model?: string;
   reason?: string;
 }
 
-export type MemoryIndexingStatus = 'pending' | 'processing' | 'ready' | 'skipped' | 'failed';
+export type MemoryIndexingStatus = 'pending' | 'processing' | 'ready' | 'skipped' | 'failed' | 'blocked';
 
 function indexingMetadata(
   metadata: Record<string, unknown> | null | undefined,

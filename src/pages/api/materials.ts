@@ -3,6 +3,7 @@ import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { adminSupabase } from '@/lib/admin-supabase';
 import { consumeExternalApiQuota } from '@/lib/external-api-quota';
 import { indexMemoryMaterial } from '@/lib/memory-indexing';
+import { hasActiveAiDataProcessingConsent } from '@/lib/ai-processing-consent';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const user = await authenticate(req, res);
@@ -40,6 +41,13 @@ async function retryMaterialIndexing(req: NextApiRequest, res: NextApiResponse, 
 
   if (material.type !== 'text' || typeof material.content !== 'string' || !material.content.trim()) {
     return res.status(400).json({ error: 'This material does not have indexable text yet' });
+  }
+
+  if (!await hasActiveAiDataProcessingConsent(user.client, material.memory_profile_id)) {
+    return res.status(403).json({
+      error: '请先在人物对话页同意当前 AI 数据处理告知，再建立语义记忆',
+      code: 'ai_processing_consent_required',
+    });
   }
 
   const quota = await consumeExternalApiQuota(user.client, 'embedding', material.content.length);
@@ -115,30 +123,51 @@ async function createTextMaterial(req: NextApiRequest, res: NextApiResponse, use
 
   if (error || !data) return res.status(500).json({ error: 'Failed to create material' });
 
-  const quota = await consumeExternalApiQuota(user.client, 'embedding', data.content.length);
   let indexing;
-  if (quota.status === 'allowed') {
-    indexing = await indexMemoryMaterial({
-      materialId: data.id,
-      profileId,
-      sourceType: 'text',
-      content: data.content,
-      metadata: data.metadata,
-    });
-  } else {
-    const reason = quota.status === 'limited'
-      ? 'embedding_quota_limited'
-      : 'embedding_quota_unavailable';
-    indexing = { status: 'failed' as const, chunkCount: 0, reason };
+  let responseMetadata = data.metadata;
+  const hasConsent = await hasActiveAiDataProcessingConsent(user.client, profileId);
+  if (!hasConsent) {
+    responseMetadata = {
+      ...(data.metadata || {}),
+      indexing_status: 'blocked',
+      indexing_error: 'ai_processing_consent_required',
+      indexing_updated_at: new Date().toISOString(),
+    };
+    indexing = {
+      status: 'blocked' as const,
+      chunkCount: 0,
+      reason: 'ai_processing_consent_required',
+    };
     await user.client.from('memory_materials').update({
-      metadata: {
+      metadata: responseMetadata,
+    }).eq('id', data.id).eq('memory_profile_id', profileId);
+  } else {
+    const quota = await consumeExternalApiQuota(user.client, 'embedding', data.content.length);
+    if (quota.status === 'allowed') {
+      indexing = await indexMemoryMaterial({
+        materialId: data.id,
+        profileId,
+        sourceType: 'text',
+        content: data.content,
+        metadata: data.metadata,
+      });
+    } else {
+      const reason = quota.status === 'limited'
+        ? 'embedding_quota_limited'
+        : 'embedding_quota_unavailable';
+      responseMetadata = {
+        ...(data.metadata || {}),
         indexing_status: 'failed',
         indexing_error: reason,
         indexing_updated_at: new Date().toISOString(),
-      },
-    }).eq('id', data.id).eq('memory_profile_id', profileId);
-    if (quota.status === 'limited') {
-      res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+      };
+      indexing = { status: 'failed' as const, chunkCount: 0, reason };
+      await user.client.from('memory_materials').update({
+        metadata: responseMetadata,
+      }).eq('id', data.id).eq('memory_profile_id', profileId);
+      if (quota.status === 'limited') {
+        res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+      }
     }
   }
 
@@ -147,7 +176,7 @@ async function createTextMaterial(req: NextApiRequest, res: NextApiResponse, use
     type: data.type,
     title: data.title,
     content: data.content,
-    metadata: data.metadata,
+    metadata: responseMetadata,
     created_at: data.created_at,
     indexing,
   });

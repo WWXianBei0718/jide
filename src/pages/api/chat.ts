@@ -20,6 +20,7 @@ import {
   PERSONA_CONTEXT_VERSION,
   prepareConversationContext,
 } from '@/lib/persona-context';
+import { hasActiveAiDataProcessingConsent } from '@/lib/ai-processing-consent';
 
 export default async function handler(
   req: NextApiRequest,
@@ -61,6 +62,13 @@ export default async function handler(
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
   if (!isOwner) return;
+
+  if (!await hasActiveAiDataProcessingConsent(user.client, profileId)) {
+    return res.status(403).json({
+      error: '请先阅读并同意当前 AI 数据处理告知，再开始对话',
+      code: 'ai_processing_consent_required',
+    });
+  }
 
   const quota = await consumeChatQuota(user.client);
   if (quota.status === 'unavailable') {

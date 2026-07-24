@@ -276,7 +276,9 @@ export default function MaterialsPage() {
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error('语义记忆暂时无法建立；原始资料已保留，关键词检索仍可使用');
+        throw new Error(
+          data.error || '语义记忆暂时无法建立；原始资料已保留，关键词检索仍可使用'
+        );
       }
       setStatusMessage(`语义记忆已建立，共 ${data.indexing.chunkCount} 个片段`);
       await fetchMaterials();
@@ -480,7 +482,7 @@ function MaterialCard({
       {material.type === 'text' && (
         <div className="mb-4">
           <IndexingStatus status={indexingStatus} />
-          {indexingStatus === 'failed' && (
+          {(indexingStatus === 'failed' || indexingStatus === 'blocked') && (
             <button
               onClick={onRetryIndexing}
               disabled={isRetrying}
@@ -551,6 +553,9 @@ function IndexingStatus({ status }: { status: string | null }) {
   }
   if (status === 'failed') {
     return <span className="text-sm text-amber-700">语义记忆待重试（关键词检索可用）</span>;
+  }
+  if (status === 'blocked') {
+    return <span className="text-sm text-amber-700">等待你在人物对话页授权 AI 数据处理（原始资料已保存）</span>;
   }
   if (status === 'skipped') {
     return <span className="text-sm text-warm-500">没有可建立索引的文字</span>;

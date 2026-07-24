@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { adminSupabase } from '../src/lib/admin-supabase';
 import { createMemoryBackfillPlan, type BackfillMaterial } from '../src/lib/memory-backfill';
 import { indexMemoryMaterial } from '../src/lib/memory-indexing';
+import { hasActiveAiDataProcessingConsent } from '../src/lib/ai-processing-consent';
 
 function loadLocalEnv(): void {
   const envPath = resolve(process.cwd(), '.env.local');
@@ -62,6 +63,11 @@ async function main(): Promise<void> {
 
   let completed = 0;
   for (const material of plan.candidates) {
+    if (!await hasActiveAiDataProcessingConsent(adminSupabase, material.memory_profile_id)) {
+      process.stdout.write('Stopped safely: the next profile has no active AI data processing consent.\n');
+      process.exitCode = 1;
+      return;
+    }
     const result = await indexMemoryMaterial({
       materialId: material.id,
       profileId: material.memory_profile_id,

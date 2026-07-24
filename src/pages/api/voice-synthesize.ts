@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { beginApiRequest, logApiError } from '@/lib/api-observability';
 import { authenticate, verifyProfileOwnership } from '@/lib/auth-middleware';
 import { consumeExternalApiQuota } from '@/lib/external-api-quota';
+import { hasActiveVoiceProcessingConsent } from '@/lib/ai-processing-consent';
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 
@@ -34,6 +35,13 @@ export default async function handler(
 
   if (!process.env.ELEVENLABS_API_KEY) {
     return res.status(500).json({ error: 'ElevenLabs API key not configured' });
+  }
+
+  if (!await hasActiveVoiceProcessingConsent(user.client, profileId)) {
+    return res.status(403).json({
+      error: '当前人物没有有效的声音处理授权，已停止向声音供应商发送文本',
+      code: 'voice_processing_consent_required',
+    });
   }
 
   try {

@@ -27,6 +27,7 @@ test('service-role client imports stay inside the reviewed server allowlist', ()
     'src/lib/security-audit-retention.ts',
     'src/pages/api/account-export-archive.ts',
     'src/pages/api/account.ts',
+    'src/pages/api/ai-consent.ts',
     'src/pages/api/chat.ts',
     'src/pages/api/health.ts',
     'src/pages/api/materials.ts',
