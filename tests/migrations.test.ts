@@ -24,7 +24,26 @@ test('database migrations include the initial schema before feature migrations',
     '202607240003_harden_versioned_consents.sql',
     '202607270000_add_material_processing_leases.sql',
     '202607270001_scope_material_job_claims.sql',
+    '202607270002_add_upload_scan_leases.sql',
   ]);
+});
+
+test('upload scanning migration isolates leases and clean publication', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607270002_add_upload_scan_leases.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /status in \([\s\S]*'scanning'/);
+  assert.match(sql, /for update skip locked/);
+  assert.match(sql, /scan_lease_expires_at <= now\(\)/);
+  assert.match(sql, /upload_expires_at >= now\(\)/);
+  assert.match(sql, /revoke select on table public\.uploaded_files from authenticated/);
+  assert.match(sql, /grant select \([\s\S]*\) on table public\.uploaded_files to authenticated/);
+  assert.doesNotMatch(sql, /grant select \([^;]*scan_lease_owner/);
+  assert.match(sql, /grant execute on function public\.claim_uploads_for_malware_scan[\s\S]*to service_role/);
+  assert.match(sql, /grant execute on function public\.fail_upload_malware_scan[\s\S]*to service_role/);
+  assert.match(sql, /grant execute on function public\.complete_scanned_upload[\s\S]*to service_role/);
 });
 
 test('material processors can only claim explicitly supported job types', () => {

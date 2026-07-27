@@ -51,6 +51,14 @@ npm run materials:process:pdf:dry
 
 `npm run materials:process:pdf` 会领取最多 3 个 PDF 任务、从私有 Storage 下载文件并把本地提取文字写回材料。只有在第 15 份迁移已部署、运行环境受控且明确获准处理开发库文件时才能执行；它不调用 OpenAI、ElevenLabs 或外部 OCR 服务。图片 OCR 和音视频转写尚未接入。
 
+恶意文件扫描 Worker 同样默认只输出配置，不访问数据库、Storage 或扫描服务：
+
+```bash
+npm run uploads:scan:dry
+```
+
+`npm run uploads:scan` 需要私有 ClamAV 服务和第 16 份迁移。它只领取仍在有效期内且明确等待扫描的隔离区文件；扫描通过后才发布到私有素材区，发现恶意文件时拒绝并清理隔离对象。第 16 份迁移已部署并回读，但尚未部署 ClamAV 或处理真实文件，因此不能宣称已经具备生产恶意文件扫描能力。
+
 ## 环境变量
 
 复制 `.env.example` 为 `.env.local`，仅在本地填写以下变量：
