@@ -43,6 +43,14 @@ npm run eval:persona:resume
 
 `eval:persona` 默认运行完整 40 题；`eval:persona:smoke` 是开发中的可选 12 题快速检查，不能替代正式验证。报告写入 `evals/results/latest.md`；更换人格规则版本时，旧报告会按数据集、提示词版本和评测模式自动归档。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
 
+本地 PDF Worker 默认只输出配置，不读取文件或写数据库：
+
+```bash
+npm run materials:process:pdf:dry
+```
+
+`npm run materials:process:pdf` 会领取最多 3 个 PDF 任务、从私有 Storage 下载文件并把本地提取文字写回材料。只有在第 15 份迁移已部署、运行环境受控且明确获准处理开发库文件时才能执行；它不调用 OpenAI、ElevenLabs 或外部 OCR 服务。图片 OCR 和音视频转写尚未接入。
+
 ## 环境变量
 
 复制 `.env.example` 为 `.env.local`，仅在本地填写以下变量：

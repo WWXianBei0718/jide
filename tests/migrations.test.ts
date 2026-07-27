@@ -23,7 +23,22 @@ test('database migrations include the initial schema before feature migrations',
     '202607240002_add_material_processing_jobs.sql',
     '202607240003_harden_versioned_consents.sql',
     '202607270000_add_material_processing_leases.sql',
+    '202607270001_scope_material_job_claims.sql',
   ]);
+});
+
+test('material processors can only claim explicitly supported job types', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607270001_scope_material_job_claims.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /drop function public\.claim_material_processing_jobs\(text, integer, integer\)/);
+  assert.match(sql, /p_job_types text\[\]/);
+  assert.match(sql, /job\.job_type = any\(p_job_types\)/);
+  assert.match(sql, /from unnest\(p_job_types\)/);
+  assert.match(sql, /grant execute on function public\.claim_material_processing_jobs\(text, text\[\], integer, integer\)[\s\S]*to service_role/);
+  assert.doesNotMatch(sql, /to authenticated/);
 });
 
 test('material processing lease migration prevents duplicate and stale worker writes', () => {

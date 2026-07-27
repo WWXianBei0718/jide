@@ -21,6 +21,8 @@
     "eval:retrieval": "tsx scripts/run-retrieval-eval.ts",
     "memory:backfill:dry": "tsx scripts/run-memory-backfill.ts",
     "memory:backfill": "tsx scripts/run-memory-backfill.ts --execute",
+    "materials:process:pdf:dry": "tsx scripts/run-local-pdf-processing.ts",
+    "materials:process:pdf": "tsx scripts/run-local-pdf-processing.ts --execute",
     "backup:verify": "tsx scripts/verify-backup-readiness.ts",
     "audit:retention:dry": "tsx scripts/run-security-audit-retention.ts",
     "audit:retention": "tsx scripts/run-security-audit-retention.ts --execute"
@@ -29,6 +31,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "archiver": "^8.0.0",
     "next": "^15.0.0",
+    "pdfjs-dist": "5.4.530",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "^5.6.0",
