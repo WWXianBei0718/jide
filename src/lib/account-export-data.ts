@@ -111,7 +111,7 @@ export async function collectAccountExport(
     )),
     readAllPages((from, to) => byProfile(
       'material_processing_jobs',
-      'id, memory_profile_id, material_id, job_type, status, attempt_count, processor_version, queued_at, started_at, completed_at, created_at, updated_at',
+      'id, memory_profile_id, material_id, job_type, status, attempt_count, processor_version, queued_at, started_at, completed_at, next_attempt_at, created_at, updated_at',
       from,
       to
     )),

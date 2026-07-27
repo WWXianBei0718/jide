@@ -26,7 +26,7 @@ Supabase 的数据库备份只包含 Storage 元数据，不包含 Storage 中�
 ## 2. 当前已经完成的保护
 
 - 所有数据库结构变更都保存在 `supabase/migrations/`。
-- `MANIFEST.sha256` 固定记录每份迁移的顺序和内容校验值（当前 13 份）。
+- `MANIFEST.sha256` 固定记录每份迁移的顺序和内容校验值（当前 14 份）。
 - `npm run backup:verify` 会在本地验证迁移是否缺失、被改写或顺序异常。
 - `backups/`、`*.backup`、`*.dump`、`*.sql.gz` 已加入 `.gitignore`，避免把私人备份提交进 Git。
 - 上述检查不联网、不读取 Supabase 业务数据、不调用 OpenAI 或 ElevenLabs，也不产生云端费用。

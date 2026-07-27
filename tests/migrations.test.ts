@@ -22,7 +22,31 @@ test('database migrations include the initial schema before feature migrations',
     '202607240001_add_security_audit_events.sql',
     '202607240002_add_material_processing_jobs.sql',
     '202607240003_harden_versioned_consents.sql',
+    '202607270000_add_material_processing_leases.sql',
   ]);
+});
+
+test('material processing lease migration prevents duplicate and stale worker writes', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202607270000_add_material_processing_leases.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /for update skip locked/);
+  assert.match(sql, /job\.lease_expires_at <= now\(\)/);
+  assert.match(sql, /job\.attempt_count < 20/);
+  assert.match(sql, /revoke select on table public\.material_processing_jobs from authenticated/);
+  assert.match(sql, /grant select \([\s\S]*next_attempt_at[\s\S]*\) on table public\.material_processing_jobs to authenticated/);
+  assert.doesNotMatch(sql, /grant select \([^;]*lease_owner/);
+  assert.match(sql, /length\(p_extracted_text\) > 2000000/);
+  assert.match(sql, /'content_source', 'extracted'/);
+  assert.match(sql, /'indexing_status', 'blocked'/);
+  assert.match(sql, /'indexing_error', 'ai_processing_consent_required'/);
+  assert.match(sql, /claimed\.lease_owner <> p_worker_id/);
+  assert.match(sql, /grant execute on function public\.claim_material_processing_jobs[\s\S]*to service_role/);
+  assert.match(sql, /grant execute on function public\.complete_material_processing_job[\s\S]*to service_role/);
+  assert.match(sql, /grant execute on function public\.fail_material_processing_job[\s\S]*to service_role/);
+  assert.doesNotMatch(sql, /provider_response|raw_error/);
 });
 
 test('consent hardening migration makes the consent ledger server-write-only', () => {
