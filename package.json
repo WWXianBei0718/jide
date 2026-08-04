@@ -23,6 +23,8 @@
     "memory:backfill": "tsx scripts/run-memory-backfill.ts --execute",
     "materials:process:pdf:dry": "tsx scripts/run-local-pdf-processing.ts",
     "materials:process:pdf": "tsx scripts/run-local-pdf-processing.ts --execute",
+    "materials:process:ocr:dry": "tsx scripts/run-local-image-ocr.ts",
+    "materials:process:ocr": "tsx scripts/run-local-image-ocr.ts --execute",
     "uploads:scan:dry": "tsx scripts/run-malware-scanning.ts",
     "uploads:scan": "tsx scripts/run-malware-scanning.ts --execute",
     "backup:verify": "tsx scripts/verify-backup-readiness.ts",

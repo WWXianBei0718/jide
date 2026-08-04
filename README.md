@@ -49,7 +49,15 @@ npm run eval:persona:resume
 npm run materials:process:pdf:dry
 ```
 
-`npm run materials:process:pdf` 会领取最多 3 个 PDF 任务、从私有 Storage 下载文件并把本地提取文字写回材料。只有在第 15 份迁移已部署、运行环境受控且明确获准处理开发库文件时才能执行；它不调用 OpenAI、ElevenLabs 或外部 OCR 服务。图片 OCR 和音视频转写尚未接入。
+`npm run materials:process:pdf` 会领取最多 3 个 PDF 任务、从私有 Storage 下载文件并把本地提取文字写回材料。只有在第 15 份迁移已部署、运行环境受控且明确获准处理开发库文件时才能执行；它不调用 OpenAI、ElevenLabs 或外部 OCR 服务。
+
+本地图片 OCR Worker 同样默认只输出配置：
+
+```bash
+npm run materials:process:ocr:dry
+```
+
+`npm run materials:process:ocr` 只领取 `image_ocr` 任务，校验私有 Storage 中的 JPEG、PNG 和 WebP 字节后，把原始图片发送给仅允许内网地址的 OCR 适配器。适配器必须接受原始图片字节并返回 `{"text":"..."}`；回写前会限制输入、响应和文字长度，并保存处理器版本与内容哈希。当前只完成安全调用边界，尚未部署 PaddleOCR 服务或处理真实文件。音视频转写仍未接入。
 
 恶意文件扫描 Worker 同样默认只输出配置，不访问数据库、Storage 或扫描服务：
 
