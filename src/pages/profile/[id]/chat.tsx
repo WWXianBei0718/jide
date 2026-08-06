@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
-import type { MemoryProfile, Message } from '@/types';
+import {
+  MESSAGE_FEEDBACK_REASON_LABELS,
+  MESSAGE_FEEDBACK_REASONS,
+  type MessageFeedbackReason,
+  type MessageFeedbackVerdict,
+} from '@/lib/message-feedback';
+import type { MemoryProfile, Message, MessageFeedback } from '@/types';
 
 interface AiConsentStatus {
   consented: boolean;
@@ -14,6 +20,12 @@ export default function ChatPage() {
   const [profile, setProfile] = useState<MemoryProfile | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
+  const [feedbackDraftMessageId, setFeedbackDraftMessageId] = useState<string | null>(null);
+  const [feedbackDraftReasons, setFeedbackDraftReasons] = useState<MessageFeedbackReason[]>([]);
+  const [feedbackDraftNote, setFeedbackDraftNote] = useState('');
+  const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
@@ -60,6 +72,21 @@ export default function ChatPage() {
     if (response.ok) setMessages(await response.json());
   }, [authorizedFetch, id]);
 
+  const fetchFeedback = useCallback(async () => {
+    if (!id) return;
+    try {
+      const response = await authorizedFetch(`/api/message-feedback?profileId=${encodeURIComponent(String(id))}`);
+      if (!response.ok) throw new Error('Failed to fetch feedback');
+      const feedback = await response.json() as MessageFeedback[];
+      setFeedbackByMessage(Object.fromEntries(
+        feedback.map((item) => [item.message_id, item])
+      ));
+      setFeedbackError('');
+    } catch {
+      setFeedbackError('暂时无法读取回复评价');
+    }
+  }, [authorizedFetch, id]);
+
   const fetchConsent = useCallback(async () => {
     if (!id) return;
     try {
@@ -83,7 +110,8 @@ export default function ChatPage() {
     fetchProfile();
     fetchMessages();
     fetchConsent();
-  }, [user, loading, id, router, fetchProfile, fetchMessages, fetchConsent]);
+    fetchFeedback();
+  }, [user, loading, id, router, fetchProfile, fetchMessages, fetchConsent, fetchFeedback]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -211,6 +239,91 @@ export default function ChatPage() {
     }
   };
 
+  const saveFeedback = async (
+    messageId: string,
+    verdict: MessageFeedbackVerdict,
+    reasons: MessageFeedbackReason[] = [],
+    note = ''
+  ) => {
+    if (!id) return;
+    setFeedbackBusyId(messageId);
+    setFeedbackError('');
+    try {
+      const response = await authorizedFetch('/api/message-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: id,
+          messageId,
+          verdict,
+          reasons,
+          note,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to save feedback');
+      setFeedbackByMessage((current) => ({ ...current, [messageId]: data }));
+      setFeedbackDraftMessageId(null);
+      setFeedbackDraftReasons([]);
+      setFeedbackDraftNote('');
+    } catch {
+      setFeedbackError('评价保存失败，请稍后重试');
+    } finally {
+      setFeedbackBusyId(null);
+    }
+  };
+
+  const removeFeedback = async (messageId: string) => {
+    if (!id) return;
+    setFeedbackBusyId(messageId);
+    setFeedbackError('');
+    try {
+      const response = await authorizedFetch('/api/message-feedback', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: id, messageId }),
+      });
+      if (!response.ok) throw new Error('Failed to remove feedback');
+      setFeedbackByMessage((current) => {
+        const next = { ...current };
+        delete next[messageId];
+        return next;
+      });
+      setFeedbackDraftMessageId(null);
+    } catch {
+      setFeedbackError('评价删除失败，请稍后重试');
+    } finally {
+      setFeedbackBusyId(null);
+    }
+  };
+
+  const handleLike = (messageId: string) => {
+    if (feedbackByMessage[messageId]?.verdict === 'like') {
+      removeFeedback(messageId);
+      return;
+    }
+    saveFeedback(messageId, 'like');
+  };
+
+  const openUnlikeFeedback = (messageId: string) => {
+    if (feedbackDraftMessageId === messageId) {
+      setFeedbackDraftMessageId(null);
+      return;
+    }
+    const existing = feedbackByMessage[messageId];
+    setFeedbackDraftMessageId(messageId);
+    setFeedbackDraftReasons(existing?.verdict === 'unlike' ? existing.reasons : []);
+    setFeedbackDraftNote(existing?.verdict === 'unlike' ? existing.note || '' : '');
+  };
+
+  const toggleFeedbackReason = (reason: MessageFeedbackReason) => {
+    setFeedbackDraftReasons((current) =>
+      current.includes(reason)
+        ? current.filter((item) => item !== reason)
+        : [...current, reason]
+    );
+  };
+
   if (loading || !user || isProfileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -264,6 +377,9 @@ export default function ChatPage() {
         )}
         {consentError && (
           <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg">{consentError}</div>
+        )}
+        {feedbackError && (
+          <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-lg">{feedbackError}</div>
         )}
 
         {consentStatus && !consentStatus.consented && (
@@ -353,6 +469,96 @@ export default function ChatPage() {
                         minute: '2-digit',
                       })}
                     </p>
+                    {message.role === 'assistant' && !message.id.startsWith('pending-') && (
+                      <div className="mt-3 pt-2 border-t border-warm-200">
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-warm-500">这条回复像吗？</span>
+                          <button
+                            type="button"
+                            onClick={() => handleLike(message.id)}
+                            disabled={feedbackBusyId === message.id}
+                            aria-pressed={feedbackByMessage[message.id]?.verdict === 'like'}
+                            className={`px-2 py-1 rounded-md disabled:opacity-50 ${
+                              feedbackByMessage[message.id]?.verdict === 'like'
+                                ? 'bg-green-100 text-green-800'
+                                : 'text-warm-600 hover:bg-white'
+                            }`}
+                          >
+                            像
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openUnlikeFeedback(message.id)}
+                            disabled={feedbackBusyId === message.id}
+                            aria-pressed={feedbackByMessage[message.id]?.verdict === 'unlike'}
+                            className={`px-2 py-1 rounded-md disabled:opacity-50 ${
+                              feedbackByMessage[message.id]?.verdict === 'unlike'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'text-warm-600 hover:bg-white'
+                            }`}
+                          >
+                            不像
+                          </button>
+                          {feedbackByMessage[message.id] && (
+                            <button
+                              type="button"
+                              onClick={() => removeFeedback(message.id)}
+                              disabled={feedbackBusyId === message.id}
+                              className="ml-auto text-warm-400 hover:text-warm-700 disabled:opacity-50"
+                            >
+                              清除
+                            </button>
+                          )}
+                        </div>
+
+                        {feedbackDraftMessageId === message.id && (
+                          <div className="mt-3 bg-white/70 rounded-lg p-3 text-xs">
+                            <p className="text-warm-700 mb-2">哪里不像？可多选</p>
+                            <div className="flex flex-wrap gap-2">
+                              {MESSAGE_FEEDBACK_REASONS.map((reason) => (
+                                <button
+                                  key={reason}
+                                  type="button"
+                                  onClick={() => toggleFeedbackReason(reason)}
+                                  aria-pressed={feedbackDraftReasons.includes(reason)}
+                                  className={`px-2 py-1 rounded-full border ${
+                                    feedbackDraftReasons.includes(reason)
+                                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                                      : 'border-warm-200 text-warm-600'
+                                  }`}
+                                >
+                                  {MESSAGE_FEEDBACK_REASON_LABELS[reason]}
+                                </button>
+                              ))}
+                            </div>
+                            <textarea
+                              value={feedbackDraftNote}
+                              onChange={(event) => setFeedbackDraftNote(event.target.value.slice(0, 500))}
+                              maxLength={500}
+                              rows={2}
+                              placeholder="可选：具体说说哪句不像。这不会自动改写人物资料。"
+                              className="mt-3 w-full px-3 py-2 border border-warm-200 rounded-lg bg-white text-warm-900 outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                              <span className="text-warm-400">{feedbackDraftNote.length}/500</span>
+                              <button
+                                type="button"
+                                onClick={() => saveFeedback(
+                                  message.id,
+                                  'unlike',
+                                  feedbackDraftReasons,
+                                  feedbackDraftNote
+                                )}
+                                disabled={feedbackBusyId === message.id}
+                                className="px-3 py-1.5 bg-primary-600 text-white rounded-md disabled:opacity-50"
+                              >
+                                {feedbackBusyId === message.id ? '保存中…' : '保存评价'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

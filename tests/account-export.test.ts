@@ -20,6 +20,7 @@ test('builds a versioned portable export without changing supplied records', () 
     memoryChunks: [],
     conversations: [],
     messages: [],
+    messageFeedback: [{ message_id: 'message-1', verdict: 'unlike' }],
     uploadedFiles: [],
     consents: [],
     voiceCloningJobs: [],
@@ -31,6 +32,7 @@ test('builds a versioned portable export without changing supplied records', () 
   assert.equal(archive.exportedAt, '2026-07-23T12:00:00.000Z');
   assert.equal(archive.profiles, profiles);
   assert.deepEqual(archive.materialProcessingJobs, []);
+  assert.deepEqual(archive.messageFeedback, [{ message_id: 'message-1', verdict: 'unlike' }]);
   assert.deepEqual(archive.externalApiUsageEvents, [{ operation: 'tts', units: 12 }]);
   assert.match(archive.notice.fileContent, /不包含/);
   assert.match(archive.notice.derivedVectors, /Embedding/);

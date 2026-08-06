@@ -1,4 +1,4 @@
-export const ACCOUNT_EXPORT_VERSION = 'remember-account-export-v4';
+export const ACCOUNT_EXPORT_VERSION = 'remember-account-export-v5';
 
 type ExportRecord = Record<string, unknown>;
 
@@ -34,6 +34,7 @@ export interface AccountExportInput {
   memoryChunks: unknown[];
   conversations: unknown[];
   messages: unknown[];
+  messageFeedback: unknown[];
   uploadedFiles: unknown[];
   consents: unknown[];
   voiceCloningJobs: unknown[];

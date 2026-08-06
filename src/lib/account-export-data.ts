@@ -97,6 +97,7 @@ export async function collectAccountExport(
     memoryChunks,
     conversations,
     messages,
+    messageFeedback,
     uploadedFiles,
     consents,
     voiceCloningJobs,
@@ -134,6 +135,15 @@ export async function collectAccountExport(
       adminSupabase
         .from('messages')
         .select('id, conversation_id, memory_profile_id, role, content, retrieved_context, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
+    readAllPages((from, to) =>
+      adminSupabase
+        .from('message_feedback')
+        .select('id, memory_profile_id, message_id, verdict, reasons, note, created_at, updated_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: true })
         .order('id', { ascending: true })
@@ -221,6 +231,7 @@ export async function collectAccountExport(
       memoryChunks,
       conversations,
       messages,
+      messageFeedback,
       uploadedFiles: safeUploadedFiles,
       consents,
       voiceCloningJobs: sanitizeVoiceCloningJobs(voiceCloningJobs),

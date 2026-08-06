@@ -15,7 +15,7 @@ test('tracked migration manifest matches every migration checksum and execution 
 
   assert.deepEqual(result, {
     ready: true,
-    migrationCount: 16,
+    migrationCount: 17,
     errors: [],
   });
 });
@@ -47,6 +47,6 @@ test('migration manifest contains only checksums and migration filenames', () =>
     )
   );
 
-  assert.equal(manifest.length, 16);
+  assert.equal(manifest.length, 17);
   assert.ok(manifest.every(({ checksum }) => checksum.length === 64));
 });

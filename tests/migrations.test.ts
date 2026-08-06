@@ -25,7 +25,27 @@ test('database migrations include the initial schema before feature migrations',
     '202607270000_add_material_processing_leases.sql',
     '202607270001_scope_material_job_claims.sql',
     '202607270002_add_upload_scan_leases.sql',
+    '202608060000_add_message_feedback.sql',
   ]);
+});
+
+test('message feedback is isolated to owned assistant messages and remains separate from memory', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202608060000_add_message_feedback.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /create table if not exists public\.message_feedback/);
+  assert.match(sql, /foreign key \(message_id, user_id, memory_profile_id\)/);
+  assert.match(sql, /references public\.messages\(id, user_id, memory_profile_id\)/);
+  assert.match(sql, /verdict in \('like', 'unlike'\)/);
+  assert.match(sql, /verdict = 'unlike' or cardinality\(reasons\) = 0/);
+  assert.match(sql, /char_length\(note\) <= 500/);
+  assert.match(sql, /message\.role = 'assistant'/);
+  assert.match(sql, /message\.user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /profile\.user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /delete from public\.message_feedback where user_id = p_user_id/);
+  assert.doesNotMatch(sql, /memory_chunks|memory_materials|embedding/);
 });
 
 test('upload scanning migration isolates leases and clean publication', () => {

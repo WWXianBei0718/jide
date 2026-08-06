@@ -49,6 +49,14 @@ export interface Message {
   created_at: string;
 }
 
+export interface MessageFeedback {
+  message_id: string;
+  verdict: 'like' | 'unlike';
+  reasons: Array<'fact_wrong' | 'tone_wrong' | 'relationship_wrong' | 'unsupported' | 'too_generic'>;
+  note: string | null;
+  updated_at: string;
+}
+
 export interface User {
   id: string;
   email: string | undefined;
