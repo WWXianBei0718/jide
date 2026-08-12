@@ -25,6 +25,8 @@
     "materials:process:pdf": "tsx scripts/run-local-pdf-processing.ts --execute",
     "materials:process:ocr:dry": "tsx scripts/run-local-image-ocr.ts",
     "materials:process:ocr": "tsx scripts/run-local-image-ocr.ts --execute",
+    "materials:process:transcription:dry": "tsx scripts/run-local-transcription.ts",
+    "materials:process:transcription": "tsx scripts/run-local-transcription.ts --execute",
     "uploads:scan:dry": "tsx scripts/run-malware-scanning.ts",
     "uploads:scan": "tsx scripts/run-malware-scanning.ts --execute",
     "backup:verify": "tsx scripts/verify-backup-readiness.ts",
@@ -34,7 +36,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "archiver": "^8.0.0",
-    "next": "^15.0.0",
+    "next": "^15.5.23",
     "pdfjs-dist": "5.4.530",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -48,14 +50,14 @@
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.55.0",
-    "eslint-config-next": "^15.0.0",
-    "postcss": "^8.4.32",
+    "eslint-config-next": "^15.5.23",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.10",
     "tsx": "^4.23.1"
   },
   "overrides": {
     "next": {
-      "postcss": "8.5.16"
+      "postcss": "$postcss"
     }
   }
 }

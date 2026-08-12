@@ -1,36 +1,40 @@
 import { MAX_EXTRACTED_TEXT_CHARACTERS } from './material-processing-runner';
 import { validatePrivateServiceEndpoint } from './private-service-endpoint';
 
-export const MAX_OCR_IMAGE_BYTES = 15 * 1024 * 1024;
-export const MAX_OCR_RESPONSE_BYTES = 4 * 1024 * 1024;
-export const DEFAULT_OCR_TIMEOUT_MS = 60_000;
+export const MAX_TRANSCRIPTION_MEDIA_BYTES = 25 * 1024 * 1024;
+export const MAX_TRANSCRIPTION_RESPONSE_BYTES = 4 * 1024 * 1024;
+export const DEFAULT_TRANSCRIPTION_TIMEOUT_MS = 10 * 60_000;
 
-const SUPPORTED_IMAGE_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
+const SUPPORTED_MEDIA_TYPES = new Set([
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/mp4',
+  'video/mp4',
+  'video/webm',
 ]);
 
-export type LocalOcrErrorCode =
-  | 'empty_ocr_text'
-  | 'invalid_ocr_configuration'
-  | 'invalid_ocr_input'
-  | 'invalid_ocr_response'
-  | 'ocr_output_too_large'
-  | 'ocr_service_unavailable';
+export type LocalTranscriptionErrorCode =
+  | 'empty_transcription_text'
+  | 'invalid_transcription_configuration'
+  | 'invalid_transcription_input'
+  | 'invalid_transcription_response'
+  | 'transcription_output_too_large'
+  | 'transcription_service_unavailable';
 
-export class LocalOcrError extends Error {
-  constructor(public readonly code: LocalOcrErrorCode) {
+export class LocalTranscriptionError extends Error {
+  constructor(public readonly code: LocalTranscriptionErrorCode) {
     super(code);
-    this.name = 'LocalOcrError';
+    this.name = 'LocalTranscriptionError';
   }
 }
 
-export function validatePrivateOcrEndpoint(value: string): URL | null {
+export function validatePrivateTranscriptionEndpoint(value: string): URL | null {
   return validatePrivateServiceEndpoint(value);
 }
 
-function normalizeOcrText(text: string): string {
+function normalizeTranscriptionText(text: string): string {
   return text
     .replace(/\r\n?/g, '\n')
     .replace(/[ \t]+\n/g, '\n')
@@ -51,9 +55,9 @@ async function readBoundedResponse(response: Response): Promise<Uint8Array> {
       const { done, value } = await reader.read();
       if (done) break;
       totalBytes += value.byteLength;
-      if (totalBytes > MAX_OCR_RESPONSE_BYTES) {
+      if (totalBytes > MAX_TRANSCRIPTION_RESPONSE_BYTES) {
         await reader.cancel();
-        throw new LocalOcrError('ocr_output_too_large');
+        throw new LocalTranscriptionError('transcription_output_too_large');
       }
       chunks.push(value);
     }
@@ -70,7 +74,7 @@ async function readBoundedResponse(response: Response): Promise<Uint8Array> {
   return combined;
 }
 
-export async function extractTextWithLocalOcr(
+export async function transcribeWithPrivateService(
   input: Uint8Array,
   options: {
     endpoint: string;
@@ -82,20 +86,20 @@ export async function extractTextWithLocalOcr(
 ): Promise<{ text: string; processorVersion: string }> {
   if (
     input.byteLength < 12
-    || input.byteLength > MAX_OCR_IMAGE_BYTES
-    || !SUPPORTED_IMAGE_TYPES.has(options.mimeType)
+    || input.byteLength > MAX_TRANSCRIPTION_MEDIA_BYTES
+    || !SUPPORTED_MEDIA_TYPES.has(options.mimeType)
   ) {
-    throw new LocalOcrError('invalid_ocr_input');
+    throw new LocalTranscriptionError('invalid_transcription_input');
   }
 
-  const endpoint = validatePrivateOcrEndpoint(options.endpoint);
+  const endpoint = validatePrivateTranscriptionEndpoint(options.endpoint);
   if (!endpoint || !/^[a-zA-Z0-9._-]{1,80}$/.test(options.processorVersion)) {
-    throw new LocalOcrError('invalid_ocr_configuration');
+    throw new LocalTranscriptionError('invalid_transcription_configuration');
   }
 
   const timeoutMs = Math.min(
-    Math.max(options.timeoutMs ?? DEFAULT_OCR_TIMEOUT_MS, 1_000),
-    120_000
+    Math.max(options.timeoutMs ?? DEFAULT_TRANSCRIPTION_TIMEOUT_MS, 30_000),
+    15 * 60_000
   );
   const fetchImpl = options.fetchImpl ?? fetch;
 
@@ -105,24 +109,30 @@ export async function extractTextWithLocalOcr(
       method: 'POST',
       headers: {
         'content-type': options.mimeType,
-        'x-ocr-language': 'ch',
+        'x-transcription-language': 'zh',
+        'x-media-kind': options.mimeType.startsWith('video/') ? 'video' : 'audio',
       },
       body: new Blob([new Uint8Array(input)], { type: options.mimeType }),
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
-    throw new LocalOcrError('ocr_service_unavailable');
+    throw new LocalTranscriptionError('transcription_service_unavailable');
   }
 
   if (!response.ok) {
-    throw new LocalOcrError(
-      response.status >= 500 ? 'ocr_service_unavailable' : 'invalid_ocr_response'
+    throw new LocalTranscriptionError(
+      response.status >= 500
+        ? 'transcription_service_unavailable'
+        : 'invalid_transcription_response'
     );
   }
 
   const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_OCR_RESPONSE_BYTES) {
-    throw new LocalOcrError('ocr_output_too_large');
+  if (
+    Number.isFinite(declaredLength)
+    && declaredLength > MAX_TRANSCRIPTION_RESPONSE_BYTES
+  ) {
+    throw new LocalTranscriptionError('transcription_output_too_large');
   }
 
   const responseBytes = await readBoundedResponse(response);
@@ -131,22 +141,22 @@ export async function extractTextWithLocalOcr(
   try {
     payload = JSON.parse(new TextDecoder().decode(responseBytes));
   } catch {
-    throw new LocalOcrError('invalid_ocr_response');
+    throw new LocalTranscriptionError('invalid_transcription_response');
   }
 
   const rawText = payload && typeof payload === 'object' && 'text' in payload
     ? (payload as { text?: unknown }).text
     : null;
   if (typeof rawText !== 'string') {
-    throw new LocalOcrError('invalid_ocr_response');
+    throw new LocalTranscriptionError('invalid_transcription_response');
   }
 
-  const text = normalizeOcrText(rawText);
+  const text = normalizeTranscriptionText(rawText);
   if (!text) {
-    throw new LocalOcrError('empty_ocr_text');
+    throw new LocalTranscriptionError('empty_transcription_text');
   }
   if (text.length > MAX_EXTRACTED_TEXT_CHARACTERS) {
-    throw new LocalOcrError('ocr_output_too_large');
+    throw new LocalTranscriptionError('transcription_output_too_large');
   }
 
   return { text, processorVersion: options.processorVersion };

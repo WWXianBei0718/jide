@@ -57,7 +57,15 @@ npm run materials:process:pdf:dry
 npm run materials:process:ocr:dry
 ```
 
-`npm run materials:process:ocr` 只领取 `image_ocr` 任务，校验私有 Storage 中的 JPEG、PNG 和 WebP 字节后，把原始图片发送给仅允许内网地址的 OCR 适配器。适配器必须接受原始图片字节并返回 `{"text":"..."}`；回写前会限制输入、响应和文字长度，并保存处理器版本与内容哈希。当前只完成安全调用边界，尚未部署 PaddleOCR 服务或处理真实文件。音视频转写仍未接入。
+`npm run materials:process:ocr` 只领取 `image_ocr` 任务，校验私有 Storage 中的 JPEG、PNG 和 WebP 字节后，把原始图片发送给仅允许内网地址的 OCR 适配器。适配器必须接受原始图片字节并返回 `{"text":"..."}`；回写前会限制输入、响应和文字长度，并保存处理器版本与内容哈希。当前只完成安全调用边界，尚未部署 PaddleOCR 服务或处理真实文件。
+
+本地音视频转写 Worker 默认同样不读取数据库、Storage 或转写服务：
+
+```bash
+npm run materials:process:transcription:dry
+```
+
+`npm run materials:process:transcription` 只领取 `audio_transcription` 和 `video_transcription` 任务，并要求任务类型与真实 MIME 类型一致。它会校验私有 Storage 文件的大小和二进制签名，再把不超过 25MB 的受支持音视频发送到仅允许内网地址的转写适配器；适配器接受原始媒体字节并返回 `{"text":"..."}`。请求最长 15 分钟，响应和文字长度均有硬上限，数据库只保存规范化文字、处理器版本和内容哈希。当前未部署本地 Whisper 服务，也未处理真实文件。
 
 恶意文件扫描 Worker 同样默认只输出配置，不访问数据库、Storage 或扫描服务：
 
