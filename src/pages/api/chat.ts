@@ -22,6 +22,13 @@ import {
 } from '@/lib/persona-context';
 import { hasActiveAiDataProcessingConsent } from '@/lib/ai-processing-consent';
 
+interface PersistedMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at: string;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -85,8 +92,10 @@ export default async function handler(
     });
   }
 
+  let savedUserMessage: PersistedMessage | null = null;
+
   try {
-    const { data: savedUserMessage, error: userMessageError } = await user.client
+    const { data: savedUserMessageRow, error: userMessageError } = await user.client
       .from('messages')
       .insert({
         memory_profile_id: profileId,
@@ -97,9 +106,10 @@ export default async function handler(
       .select('id, role, content, created_at')
       .single();
 
-    if (userMessageError || !savedUserMessage) {
+    if (userMessageError || !savedUserMessageRow) {
       return res.status(500).json({ error: 'Failed to save user message' });
     }
+    savedUserMessage = savedUserMessageRow as PersistedMessage;
 
     const { data: profile, error: profileError } = await user.client
       .from('memory_profiles')
@@ -111,7 +121,7 @@ export default async function handler(
       await logApiError(requestContext, 'profile.fetch_failed', {
         outcome: profileError ? 'database_error' : 'not_found',
       });
-      return res.status(404).json({ error: 'Profile not found' });
+      return res.status(404).json({ error: 'Profile not found', userMessage: savedUserMessage });
     }
 
     const { data: materials, error: materialsError } = await user.client
@@ -152,6 +162,7 @@ export default async function handler(
       return res.status(503).json({
         error: '语义记忆暂时不可用。为避免引用错误资料，本次未生成回答，请稍后重试。',
         mode: 'memory_retrieval_unavailable',
+        userMessage: savedUserMessage,
       });
     }
     const vectorMaterials = vectorRetrieval.chunks;
@@ -198,6 +209,7 @@ export default async function handler(
           ? 'AI 服务当前额度或请求频率受限，请稍后重试'
           : 'AI 服务暂时不可用，请稍后重试',
         model: selectedModel,
+        userMessage: savedUserMessage,
       });
     }
 
@@ -228,7 +240,10 @@ export default async function handler(
         .single();
 
       if (assistantMessageError || !assistantMessage) {
-        return res.status(500).json({ error: 'Response generated but could not be saved' });
+        return res.status(500).json({
+          error: 'Response generated but could not be saved',
+          userMessage: savedUserMessage,
+        });
       }
 
       return res.status(200).json({
@@ -241,6 +256,7 @@ export default async function handler(
       return res.status(500).json({
         content: '抱歉，我现在无法回答您的问题，请稍后再试。',
         model: selectedModel,
+        userMessage: savedUserMessage,
       });
     }
   } catch (error) {
@@ -250,6 +266,7 @@ export default async function handler(
     return res.status(500).json({
       content: '抱歉，我现在无法回答您的问题，请稍后再试。',
       model: selectedModel,
+      ...(savedUserMessage ? { userMessage: savedUserMessage } : {}),
     });
   }
 }

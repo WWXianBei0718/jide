@@ -148,7 +148,17 @@ export default function ChatPage() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '发送失败');
+      if (!response.ok) {
+        setMessages((prev) => data.userMessage
+          ? prev.map((item) => item.id === pendingId ? data.userMessage : item)
+          : prev.filter((item) => item.id !== pendingId)
+        );
+        setChatError(data.userMessage
+          ? `问题已保存，但 AI 回答未生成：${data.error || '服务暂时不可用'}`
+          : data.error || '发送失败'
+        );
+        return;
+      }
 
       setMessages((prev) => [
         ...prev.map((item) => item.id === pendingId ? data.userMessage : item),

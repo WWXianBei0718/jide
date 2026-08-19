@@ -88,6 +88,24 @@ test('chat API saves provider replies through the trusted server boundary', () =
   assert.match(chatApi, /role: 'assistant'/);
 });
 
+test('chat keeps a saved user message visible when downstream AI processing fails', () => {
+  const chatApi = readPage('api', 'chat.ts');
+  const chatPage = readPage('profile', '[id]', 'chat.tsx');
+
+  assert.match(chatApi, /let savedUserMessage: PersistedMessage \| null = null/);
+  assert.match(
+    chatApi,
+    /AI 服务当前额度或请求频率受限[\s\S]*userMessage: savedUserMessage/
+  );
+  assert.match(
+    chatApi,
+    /mode: 'memory_retrieval_unavailable',[\s\S]*userMessage: savedUserMessage/
+  );
+  assert.match(chatPage, /if \(!response\.ok\) \{[\s\S]*data\.userMessage/);
+  assert.match(chatPage, /item\.id === pendingId \? data\.userMessage : item/);
+  assert.match(chatPage, /问题已保存，但 AI 回答未生成/);
+});
+
 test('billable voice endpoints enforce persistent quota and safe provider boundaries', () => {
   const cloneApi = readPage('api', 'voice-clone.ts');
   const synthesizeApi = readPage('api', 'voice-synthesize.ts');
