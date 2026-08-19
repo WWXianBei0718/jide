@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabase';
+import { getAuthErrorMessage } from '@/lib/auth-error';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -50,18 +51,18 @@ export default function LoginPage() {
       if (isSignUp) {
         const { error: signupError } = await signUp(email, password);
         if (signupError) {
-          setError(signupError.message);
+          setError(getAuthErrorMessage(signupError));
         } else {
           setMessage('注册成功，请检查邮箱验证');
         }
       } else {
         const { error: signinError } = await signIn(email, password);
         if (signinError) {
-          setError(signinError.message);
+          setError(getAuthErrorMessage(signinError));
         }
       }
-    } catch {
-      setError('网络错误，请稍后重试');
+    } catch (authError) {
+      setError(getAuthErrorMessage(authError));
     }
     setIsSubmitting(false);
   };
