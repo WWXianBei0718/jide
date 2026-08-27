@@ -52,6 +52,8 @@ test('consent API records versioned grants and withdrawals through the trusted s
   assert.match(api, /verifyProfileOwnership/);
   assert.match(api, /adminSupabase\.from\('consents'\)\.insert/);
   assert.match(api, /AI_DATA_PROCESSING_NOTICE_HASH/);
+  assert.match(api, /providers: currentAiProviders\(\)/);
+  assert.doesNotMatch(api, /provider: 'openai'/);
   assert.match(api, /consented: false/);
   assert.match(api, /withdrawn_at: withdrawnAt/);
   assert.match(page, /同意并启用 AI 对话/);

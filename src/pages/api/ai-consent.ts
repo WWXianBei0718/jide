@@ -7,6 +7,11 @@ import {
   AI_DATA_PROCESSING_NOTICE_HASH,
   hasActiveAiDataProcessingConsent,
 } from '@/lib/ai-processing-consent';
+import { getChatProvider, getEmbeddingProvider } from '@/lib/ai-provider';
+
+function currentAiProviders(): string[] {
+  return [...new Set([getChatProvider().name, getEmbeddingProvider().name])];
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const user = await authenticate(req, res);
@@ -48,7 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       notice_hash: AI_DATA_PROCESSING_NOTICE_HASH,
       withdrawn_at: null,
       evidence: {
-        provider: 'openai',
+        providers: currentAiProviders(),
         purposes: ['persona_chat', 'semantic_memory'],
         interface: 'profile_chat',
         recorded_at: consentedAt,
@@ -74,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       notice_hash: AI_DATA_PROCESSING_NOTICE_HASH,
       withdrawn_at: withdrawnAt,
       evidence: {
-        provider: 'openai',
+        providers: currentAiProviders(),
         purposes: ['persona_chat', 'semantic_memory'],
         interface: 'profile_chat',
         recorded_at: withdrawnAt,
