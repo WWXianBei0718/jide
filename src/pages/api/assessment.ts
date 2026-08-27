@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getChatProvider } from '@/lib/ai-provider';
 
 export default async function handler(
   req: NextApiRequest,
@@ -14,6 +15,7 @@ export default async function handler(
   if (process.env.NODE_ENV === 'production') {
     return res.status(404).json({ error: 'Not found' });
   }
+  const chatProvider = getChatProvider();
 
   const assessment = {
     project: {
@@ -27,7 +29,7 @@ export default async function handler(
       language: 'TypeScript',
       database: 'Supabase (PostgreSQL)',
       auth: 'Supabase Auth',
-      ai: 'OpenAI (gpt-4o-mini)',
+      ai: `${chatProvider.label} (${chatProvider.chatModel})`,
       voice: 'ElevenLabs',
     },
     features: [
@@ -70,7 +72,7 @@ export default async function handler(
             params: {
               profileId: '记忆体ID',
               message: '用户消息',
-              model: 'gpt-4o-mini',
+              model: chatProvider.chatModel,
               temperature: '0-1',
               maxTokens: '1-1000（默认 600）',
             },

@@ -52,7 +52,30 @@ test('estimates token cost from per-million pricing', () => {
   assert.equal(estimateOpenAiCostUsd(10_000, 1_000, 0.15, 0.6), 0.0021);
 });
 
-test('current prompt version remains distinct from the v1 evaluation baseline', async () => {
+test('current prompt version tracks the strict grounding revision', async () => {
   const { PERSONA_CONTEXT_VERSION } = await import('../src/lib/persona-context');
-  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v2');
+  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v5');
+});
+
+test('recognizes explicit unverified-memory boundaries without accepting a fabricated memory', () => {
+  const testCase = fictionalPersonaV1.cases.find((item) => item.id === 'continuity-02-unverified');
+  assert.ok(testCase);
+  assert.equal(
+    scorePersonaAnswer(testCase, '这件事还没有进入已确认资料，我不能把它当作真实经历。').passed,
+    true
+  );
+  assert.equal(scorePersonaAnswer(testCase, '是的，我在巴黎住过五年。').passed, false);
+});
+
+test('persona evaluation runner supports the configured Qwen provider with bounded pricing', async () => {
+  const { readFileSync } = await import('node:fs');
+  const runner = readFileSync('scripts/run-persona-eval.ts', 'utf8');
+  assert.match(runner, /getChatProvider/);
+  assert.match(runner, /'qwen-plus': \{ input: 0\.115, output: 0\.287 \}/);
+  assert.match(runner, /provider\.baseUrl/);
+  assert.match(runner, /buildRetrievalContexts/);
+  assert.match(runner, /EMBEDDING_BATCH_SIZE = 20/);
+  assert.match(runner, /mergeRetrievedMaterialChunks/);
+  assert.match(runner, /remapAllowedCitations/);
+  assert.doesNotMatch(runner, /OPENAI_API_KEY is not configured/);
 });

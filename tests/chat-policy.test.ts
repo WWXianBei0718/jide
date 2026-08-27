@@ -8,6 +8,7 @@ import {
 } from '../src/lib/chat-policy';
 
 test('uses the verified low-cost chat defaults', () => {
+  assert.equal(DEFAULT_CHAT_TEMPERATURE, 0.2);
   const result = resolveChatOptions({});
 
   assert.deepEqual(result, {

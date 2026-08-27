@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   MATERIAL_CHUNK_CHARACTERS,
+  MAX_RETRIEVAL_CHUNKS,
   MAX_RETRIEVAL_CHARACTERS,
   chunkMaterialContent,
   mergeRetrievedMaterialChunks,
   retrieveRelevantMaterialChunks,
 } from '../src/lib/memory-retrieval';
+
+test('limits generation context to the evaluated top three memory chunks', () => {
+  assert.equal(MAX_RETRIEVAL_CHUNKS, 3);
+});
 
 const materials = [
   { id: 'recent', title: '天气记录', type: 'text', content: '今天是晴天，下午整理了房间。' },

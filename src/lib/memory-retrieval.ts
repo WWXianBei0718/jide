@@ -1,8 +1,8 @@
 import type { PersonaMaterialContext } from './persona-context';
 
-export const MEMORY_RETRIEVAL_VERSION = 'hybrid-weighted-v3';
+export const MEMORY_RETRIEVAL_VERSION = 'hybrid-weighted-v4';
 export const MAX_RETRIEVAL_MATERIALS = 100;
-export const MAX_RETRIEVAL_CHUNKS = 10;
+export const MAX_RETRIEVAL_CHUNKS = 3;
 export const MAX_RETRIEVAL_CHARACTERS = 8000;
 export const MATERIAL_CHUNK_CHARACTERS = 900;
 export const MATERIAL_CHUNK_OVERLAP = 120;

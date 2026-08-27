@@ -41,7 +41,7 @@ npm run eval:persona:smoke
 npm run eval:persona:resume
 ```
 
-`eval:persona` 默认运行完整 40 题；`eval:persona:smoke` 是开发中的可选 12 题快速检查，不能替代正式验证。报告写入 `evals/results/latest.md`；更换人格规则版本时，旧报告会按数据集、提示词版本和评测模式自动归档。真实运行前必须确认 OpenAI 预算；不要把真实人物资料加入公共或未授权评测集。
+`eval:persona` 默认运行完整 40 题；`eval:persona:smoke` 是开发中的可选 12 题快速检查，不能替代正式验证。评测会先按当前向量与混合检索配置选择 3 个片段，再调用当前聊天供应商。报告写入 `evals/results/latest.md`；更换人格规则版本时，旧报告会按数据集、提示词版本和评测模式自动归档。真实运行前必须确认当前 AI 供应商预算；不要把真实人物资料加入公共或未授权评测集。
 
 本地 PDF Worker 默认只输出配置，不读取文件或写数据库：
 
@@ -83,6 +83,12 @@ npm run uploads:scan:dry
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
+- `AI_PROVIDER`
+- `AI_EMBEDDING_PROVIDER`
+- `DASHSCOPE_API_KEY`
+- `DASHSCOPE_BASE_URL`
+- `QWEN_CHAT_MODEL`
+- `QWEN_EMBEDDING_MODEL`
 - `ELEVENLABS_API_KEY`
 
 不得提交 `.env.local`，不得在前端或日志中输出服务端密钥。macOS/Linux 创建文件后应执行

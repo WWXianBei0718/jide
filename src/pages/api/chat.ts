@@ -172,7 +172,7 @@ export default async function handler(
     const retrievalStrategy = vectorRetrieval.status === 'ready'
       ? 'vector+lexical'
       : 'lexical-unindexed';
-    const personaContext = buildPersonaPrompt(profile, retrievedMaterials);
+    const personaContext = buildPersonaPrompt(profile, retrievedMaterials, message.trim());
     const conversationContext = prepareConversationContext(
       recentMessages && recentMessages.length > 0
         ? [...recentMessages].reverse()

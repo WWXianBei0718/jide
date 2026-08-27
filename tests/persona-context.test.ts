@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildPersonaPrompt,
+  isHypotheticalPersonaQuestion,
   MAX_CONVERSATION_CHARACTERS,
   MAX_CONVERSATION_MESSAGES,
   prepareConversationContext,
@@ -22,6 +23,14 @@ test('builds a grounded prompt with explicit unknown and disclosure rules', () =
   assert.match(result.prompt, /你不是林川本人/);
   assert.match(result.prompt, /假设问题/);
   assert.match(result.prompt, /口头禅、原话、表达样例/);
+  assert.match(result.prompt, /不能为了让回答更生动而拼接无关/);
+  assert.match(result.prompt, /不得创作资料中没有逐字记录的本人或亲友原话/);
+  assert.match(result.prompt, /不要用问题、例子或想象替这段经历补充/);
+  assert.match(result.prompt, /不得写 \[资料1–7\]/);
+  assert.match(result.prompt, /默认只写 2～4 个短句/);
+  assert.match(result.prompt, /第一句必须以“从现有资料看”或“我只能推测”开头/);
+  assert.match(result.prompt, /不要举可能的答案/);
+  assert.match(result.prompt, /输出前逐项删除/);
   assert.match(result.prompt, /没有可作为证据的已解析文字资料/);
   assert.deepEqual(result.sourceIds, []);
   assert.deepEqual(result.sources, []);
@@ -85,4 +94,16 @@ test('keeps citation-to-chunk mappings while deduplicating audited material ids'
   assert.deepEqual(result.sourceIds, ['long-material']);
   assert.deepEqual(result.sources.map((source) => source.label), ['[资料1]', '[资料2]']);
   assert.ok(result.sources.every((source) => source.materialId === 'long-material'));
+});
+
+test('adds a bounded current-turn rule for hypothetical questions only', () => {
+  assert.equal(isHypotheticalPersonaQuestion('如果我连续熬夜，你会支持吗？'), true);
+  assert.equal(isHypotheticalPersonaQuestion('我小时候怕打雷时，你会怎么陪我？'), false);
+
+  const hypothetical = buildPersonaPrompt(profile, [], '如果我连续熬夜，你会支持吗？');
+  assert.match(hypothetical.prompt, /本轮问题已被系统判定为“有限推断”/);
+  assert.match(hypothetical.prompt, /不得用第一人称补写未记录的经历/);
+
+  const factual = buildPersonaPrompt(profile, [], '你是哪天出生的？');
+  assert.match(factual.prompt, /本轮未添加额外问题类型判定/);
 });

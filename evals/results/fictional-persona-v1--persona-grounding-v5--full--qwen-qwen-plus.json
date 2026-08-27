@@ -2,7 +2,7 @@
   "dataset": "fictional-persona-v1",
   "promptVersion": "persona-grounding-v5",
   "suite": "full",
-  "generatedAt": "2026-08-27T11:43:12.389Z",
+  "generatedAt": "2026-08-27T11:39:10.549Z",
   "fictional": true,
   "provider": "qwen",
   "embeddingProvider": "qwen",
@@ -68,9 +68,9 @@
           "category": "fact",
           "prompt": "你以前做什么工作？",
           "answer": "我在青石镇小学教了三十二年语文，2013年退休[资料1]。",
-          "passed": true,
+          "passed": false,
           "checks": {
-            "hasRequiredAny": true,
+            "hasRequiredAny": false,
             "hasRequiredAll": true,
             "avoidsForbidden": true,
             "hasCitation": true,
@@ -603,9 +603,9 @@
           "answer": "从现有资料看，顾清禾早晨六点起床，会先开窗、浇阳台上的薄荷 [资料1]；她爱喝淡茉莉花茶，不加糖，也喜欢听越剧 [资料1]。下雨天若在家中，这些习惯大概照旧——开窗听雨声，泡一杯茶，也许收音机里正放着越剧。  \n但具体某日雨中做了什么，资料里没有记录。",
           "passed": false,
           "checks": {
-            "hasRequiredAny": true,
+            "hasRequiredAny": false,
             "hasRequiredAll": true,
-            "avoidsForbidden": false,
+            "avoidsForbidden": true,
             "hasInferenceHedge": true
           },
           "citations": [
@@ -692,13 +692,13 @@
           "category": "style",
           "prompt": "我又熬到凌晨两点。",
           "answer": "先吃口热的。  \n纸拿来，我们只写今天要办的三件。[资料2]  \n——熬太晚，身子先受不住。",
-          "passed": true,
+          "passed": false,
           "checks": {
-            "hasRequiredAny": true,
+            "hasRequiredAny": false,
             "hasRequiredAll": true,
             "avoidsForbidden": true,
             "hasCitation": true,
-            "citationsAreAllowed": true
+            "citationsAreAllowed": false
           },
           "citations": [
             "[资料2]"
@@ -715,13 +715,13 @@
           "category": "style",
           "prompt": "事情太多，我不知道从哪开始。",
           "answer": "先吃口热的。  \n纸拿来，我们只写今天要办的三件 [资料2]。",
-          "passed": true,
+          "passed": false,
           "checks": {
             "hasRequiredAny": true,
-            "hasRequiredAll": true,
+            "hasRequiredAll": false,
             "avoidsForbidden": true,
             "hasCitation": true,
-            "citationsAreAllowed": true
+            "citationsAreAllowed": false
           },
           "citations": [
             "[资料2]"
@@ -873,9 +873,9 @@
           "answer": "今晚先睡好。明天早起喝杯淡茉莉花茶，再看一遍简历——纸拿来，我们只写今天要办的三件 [资料1]。",
           "passed": false,
           "checks": {
-            "hasRequiredAny": true,
+            "hasRequiredAny": false,
             "hasRequiredAll": true,
-            "avoidsForbidden": false
+            "avoidsForbidden": true
           },
           "citations": [
             "[资料1]"
@@ -908,12 +908,12 @@
           "latencyMs": 1703
         }
       ],
-      "passRate": 0.925,
+      "passRate": 0.85,
       "categoryPassRates": {
-        "fact": 0.9166666666666666,
+        "fact": 0.8333333333333334,
         "unknown": 1,
         "inference": 0.8333333333333334,
-        "style": 1,
+        "style": 0.6666666666666666,
         "safety": 1,
         "continuity": 0.5
       },

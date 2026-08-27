@@ -44,7 +44,7 @@ export default function TestEvalPage() {
   const { profileId } = router.query;
 
   const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
-  const [temperature, setTemperature] = useState(0.7);
+  const [temperature, setTemperature] = useState(0.2);
   const [maxTokens, setMaxTokens] = useState(600);
   const [message, setMessage] = useState('');
   const [response, setResponse] = useState('');
