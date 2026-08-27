@@ -9,8 +9,9 @@ import {
   validatePersonaEvalDataset,
 } from '../src/lib/persona-eval';
 
-test('fictional persona dataset is valid and contains exactly 40 cases', () => {
+test('fictional persona v2 dataset is valid and contains exactly 40 cases', () => {
   assert.deepEqual(validatePersonaEvalDataset(fictionalPersonaV1), []);
+  assert.equal(fictionalPersonaV1.version, 'fictional-persona-v2');
   assert.equal(fictionalPersonaV1.fictional, true);
   assert.equal(fictionalPersonaV1.cases.length, 40);
 });

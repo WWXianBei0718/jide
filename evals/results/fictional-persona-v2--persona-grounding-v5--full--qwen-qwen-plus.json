@@ -2,7 +2,7 @@
   "dataset": "fictional-persona-v2",
   "promptVersion": "persona-grounding-v5",
   "suite": "full",
-  "generatedAt": "2026-08-27T12:02:42.454Z",
+  "generatedAt": "2026-08-27T11:43:12.389Z",
   "fictional": true,
   "provider": "qwen",
   "embeddingProvider": "qwen",

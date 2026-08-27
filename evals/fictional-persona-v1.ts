@@ -6,7 +6,7 @@ const citation = (source: number) => ({
 });
 
 export const fictionalPersonaV1: PersonaEvalDataset = {
-  version: 'fictional-persona-v1',
+  version: 'fictional-persona-v2',
   fictional: true,
   profile: {
     name: '顾清禾',
