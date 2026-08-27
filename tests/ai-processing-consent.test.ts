@@ -8,9 +8,9 @@ import {
 } from '../src/lib/ai-processing-consent';
 
 test('AI processing notice discloses provider transfer, withdrawal, and simulation boundaries', () => {
-  assert.match(AI_DATA_PROCESSING_NOTICE, /OpenAI/);
+  assert.match(AI_DATA_PROCESSING_NOTICE, /OpenAI|通义千问/);
   assert.match(AI_DATA_PROCESSING_NOTICE, /相关的少量/);
-  assert.match(AI_DATA_PROCESSING_NOTICE, /国家或地区之外/);
+  assert.match(AI_DATA_PROCESSING_NOTICE, /服务提供商的处理区域/);
   assert.match(AI_DATA_PROCESSING_NOTICE, /撤回/);
   assert.match(AI_DATA_PROCESSING_NOTICE, /AI 模拟/);
   assert.equal(AI_DATA_PROCESSING_NOTICE_HASH.length, 64);

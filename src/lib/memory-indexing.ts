@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { adminSupabase } from './admin-supabase';
 import { chunkMaterialContent } from './memory-retrieval';
-import { createEmbeddings, EMBEDDING_MODEL } from './openai-embeddings';
+import { createEmbeddings, embeddingModel } from './ai-embeddings';
 import type { MemoryMaterial } from '@/types';
 
 export type IndexableMaterialType = MemoryMaterial['type'];
@@ -82,7 +82,7 @@ export async function indexMemoryMaterial(input: {
       embedding: vectorLiteral(embeddings[chunkIndex]),
       source_type: input.sourceType,
       chunk_index: chunkIndex,
-      embedding_model: EMBEDDING_MODEL,
+      embedding_model: embeddingModel(),
       content_hash: contentHash(chunkText),
       updated_at: new Date().toISOString(),
     }));
@@ -102,14 +102,14 @@ export async function indexMemoryMaterial(input: {
 
     const { error: readyStateError } = await adminSupabase.from('memory_materials').update({
       metadata: indexingMetadata(processingMetadata, 'ready', {
-        embedding_model: EMBEDDING_MODEL,
+        embedding_model: embeddingModel(),
         indexed_chunk_count: rows.length,
         indexed_at: new Date().toISOString(),
       }),
     }).eq('id', input.materialId).eq('memory_profile_id', input.profileId);
     if (readyStateError) throw new Error('Indexing state persistence failed');
 
-    return { status: 'ready', chunkCount: rows.length, model: EMBEDDING_MODEL };
+    return { status: 'ready', chunkCount: rows.length, model: embeddingModel() };
   } catch (error) {
     console.error(JSON.stringify({
       level: 'error',

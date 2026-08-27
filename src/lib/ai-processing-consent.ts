@@ -4,11 +4,12 @@ import {
   VOICE_CONSENT_NOTICE_TEXT,
   VOICE_CONSENT_VERSION,
 } from './consent-policy';
+import { aiProviderLabels } from './ai-provider';
 
-export const AI_DATA_PROCESSING_CONSENT_VERSION = 'ai-data-processing-v1';
+export const AI_DATA_PROCESSING_CONSENT_VERSION = 'ai-data-processing-v2';
 
 export const AI_DATA_PROCESSING_NOTICE =
-  '为生成记忆体对话和建立语义记忆，“记得”会把当前问题及与问题相关的少量人物资料片段发送给 OpenAI 处理，不会默认发送全部档案。相关数据可能在你所在国家或地区之外处理。你可以随时撤回授权；撤回后将停止新的 OpenAI 对话和语义索引，已保存在“记得”中的原始资料不会因此自动删除。数字人物和回复始终是 AI 模拟，不是真实人物本人。';
+  `为生成记忆体对话和建立语义记忆，“记得”会把当前问题及与问题相关的少量人物资料片段发送给 ${aiProviderLabels().join('、')} 处理，不会默认发送全部档案。相关数据可能在服务提供商的处理区域处理。你可以随时撤回授权；撤回后将停止新的 AI 对话和语义索引，已保存在“记得”中的原始资料不会因此自动删除。数字人物和回复始终是 AI 模拟，不是真实人物本人。`;
 
 export const AI_DATA_PROCESSING_NOTICE_HASH = createHash('sha256')
   .update(AI_DATA_PROCESSING_NOTICE)

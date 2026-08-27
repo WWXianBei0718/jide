@@ -4,6 +4,7 @@ import { adminSupabase } from '../src/lib/admin-supabase';
 import { createMemoryBackfillPlan, type BackfillMaterial } from '../src/lib/memory-backfill';
 import { indexMemoryMaterial } from '../src/lib/memory-indexing';
 import { hasActiveAiDataProcessingConsent } from '../src/lib/ai-processing-consent';
+import { getEmbeddingProvider } from '../src/lib/ai-provider';
 
 function loadLocalEnv(): void {
   const envPath = resolve(process.cwd(), '.env.local');
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
   const plan = createMemoryBackfillPlan((data || []) as BackfillMaterial[], rawLimit);
 
   process.stdout.write([
-    `Mode: ${execute ? 'EXECUTE' : 'DRY RUN (no OpenAI calls, no writes)'}`,
+    `Mode: ${execute ? 'EXECUTE' : 'DRY RUN (no external AI calls, no writes)'}`,
     `Scanned: ${(data || []).length}`,
     `Eligible: ${plan.eligibleCount}`,
     `Selected this run: ${plan.candidates.length}`,
@@ -59,7 +60,10 @@ async function main(): Promise<void> {
   ].join('\n') + '\n');
 
   if (!execute) return;
-  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is required for --execute');
+  const embeddingProvider = getEmbeddingProvider();
+  if (!embeddingProvider.apiKey) {
+    throw new Error(`${embeddingProvider.label} API key is required for --execute`);
+  }
 
   let completed = 0;
   for (const material of plan.candidates) {

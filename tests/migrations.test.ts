@@ -26,7 +26,26 @@ test('database migrations include the initial schema before feature migrations',
     '202607270001_scope_material_job_claims.sql',
     '202607270002_add_upload_scan_leases.sql',
     '202608060000_add_message_feedback.sql',
+    '202608270000_scope_memory_retrieval_to_embedding_model.sql',
   ]);
+});
+
+test('embedding-provider migration never compares vectors from different models', () => {
+  const sql = readFileSync(
+    path.join(migrationsDirectory, '202608270000_scope_memory_retrieval_to_embedding_model.sql'),
+    'utf8'
+  ).toLowerCase();
+
+  assert.match(sql, /p_embedding_model text/);
+  assert.match(sql, /chunks\.embedding_model = p_embedding_model/);
+  assert.doesNotMatch(
+    sql,
+    /drop function if exists public\.match_memory_chunks\(uuid, vector, integer, double precision\)/,
+    'the legacy OpenAI retrieval function must remain available during provider rollout'
+  );
+  assert.match(sql, /security definer/);
+  assert.match(sql, /profiles\.user_id = auth\.uid\(\)/);
+  assert.match(sql, /grant execute on function public\.match_memory_chunks\(uuid, vector, text, integer, double precision\)/);
 });
 
 test('message feedback is isolated to owned assistant messages and remains separate from memory', () => {

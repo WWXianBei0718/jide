@@ -12,7 +12,8 @@ import {
   retrieveRelevantMaterialChunks,
   type RetrievedMaterialChunk,
 } from '@/lib/memory-retrieval';
-import { createEmbeddings } from '@/lib/openai-embeddings';
+import { createEmbeddings } from '@/lib/ai-embeddings';
+import { getChatProvider, getEmbeddingProvider } from '@/lib/ai-provider';
 import { vectorLiteral } from '@/lib/memory-indexing';
 import { postOpenAiJson } from '@/lib/openai-http';
 import {
@@ -63,8 +64,9 @@ export default async function handler(
     maxTokens: selectedMaxTokens,
   } = chatOptions.options;
 
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(503).json({ error: 'OpenAI API key not configured' });
+  const chatProvider = getChatProvider();
+  if (!chatProvider.apiKey) {
+    return res.status(503).json({ error: 'AI 服务尚未完成配置' });
   }
 
   const isOwner = await verifyProfileOwnership(profileId, user.id, user.client, res);
@@ -180,9 +182,9 @@ export default async function handler(
     const response = await postOpenAiJson<{
       error?: { message?: string };
       choices?: Array<{ message?: { content?: string } }>;
-    }>('https://api.openai.com/v1/chat/completions', {
+    }>(`${chatProvider.baseUrl}/chat/completions`, {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${chatProvider.apiKey}`,
       }, {
         model: selectedModel,
         messages: [
@@ -201,7 +203,8 @@ export default async function handler(
     const data = response.data;
     
     if (!response.ok) {
-      await logApiError(requestContext, 'openai.request_failed', {
+      await logApiError(requestContext, 'ai_provider.request_failed', {
+        outcome: chatProvider.name,
         providerStatus: response.status,
       });
       return res.status(response.status).json({
@@ -291,10 +294,12 @@ async function retrieveVectorChunks(
   query: string,
   requestContext?: ReturnType<typeof beginApiRequest>
 ): Promise<VectorRetrievalResult> {
+  const provider = getEmbeddingProvider();
   const { data: indexedChunks, error: indexedChunksError } = await client
     .from('memory_chunks')
     .select('id')
     .eq('memory_profile_id', profileId)
+    .eq('embedding_model', provider.embeddingModel)
     .not('embedding', 'is', null)
     .limit(1);
 
@@ -310,12 +315,17 @@ async function retrieveVectorChunks(
 
   try {
     const [queryEmbedding] = await createEmbeddings([query]);
-    const { data, error } = await client.rpc('match_memory_chunks', {
+    const baseSearchArguments = {
       p_memory_profile_id: profileId,
       p_query_embedding: vectorLiteral(queryEmbedding),
       p_match_count: 10,
       p_min_similarity: 0.2,
-    });
+    };
+    const searchArguments =
+      provider.name === 'qwen'
+        ? { ...baseSearchArguments, p_embedding_model: provider.embeddingModel }
+        : baseSearchArguments;
+    const { data, error } = await client.rpc('match_memory_chunks', searchArguments);
     if (error) throw new Error('Vector memory search failed');
 
     return {

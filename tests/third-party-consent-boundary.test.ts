@@ -8,12 +8,12 @@ const read = (...segments: string[]) => readFileSync(
   'utf8'
 );
 
-test('chat refuses OpenAI processing before current consent and before quota or message writes', () => {
+test('chat refuses configured AI-provider processing before current consent and before quota or message writes', () => {
   const chat = read('src', 'pages', 'api', 'chat.ts');
   const consentCheck = chat.indexOf('if (!await hasActiveAiDataProcessingConsent');
   const quota = chat.indexOf('consumeChatQuota(user.client)');
   const messageInsert = chat.indexOf(".from('messages')");
-  const providerCall = chat.indexOf("'https://api.openai.com/v1/chat/completions'");
+  const providerCall = chat.indexOf('postOpenAiJson<{');
 
   assert.ok(consentCheck >= 0);
   assert.ok(consentCheck < quota);

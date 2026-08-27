@@ -1,4 +1,6 @@
-export const CHAT_MODEL = 'gpt-4o-mini' as const;
+import { getChatProvider } from './ai-provider';
+
+export const CHAT_MODEL = getChatProvider().chatModel;
 export const DEFAULT_CHAT_TEMPERATURE = 0.7;
 export const DEFAULT_CHAT_MAX_TOKENS = 600;
 export const MAX_CHAT_TOKENS = 1000;
@@ -10,7 +12,7 @@ export interface ChatOptionsInput {
 }
 
 export interface ChatOptions {
-  model: typeof CHAT_MODEL;
+  model: string;
   temperature: number;
   maxTokens: number;
 }
