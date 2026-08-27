@@ -19,6 +19,7 @@ export interface RetrievalCaseScore {
   id: string;
   query: string;
   expectedMaterialIds: string[];
+  split?: 'development' | 'holdout';
   retrievedMaterialIds: string[];
   firstRelevantRank: number | null;
   hit: boolean;

@@ -1,11 +1,13 @@
 import type { PersonaMaterialContext } from './persona-context';
 
-export const MEMORY_RETRIEVAL_VERSION = 'hybrid-vector-lexical-v2';
+export const MEMORY_RETRIEVAL_VERSION = 'hybrid-weighted-v3';
 export const MAX_RETRIEVAL_MATERIALS = 100;
 export const MAX_RETRIEVAL_CHUNKS = 10;
 export const MAX_RETRIEVAL_CHARACTERS = 8000;
 export const MATERIAL_CHUNK_CHARACTERS = 900;
 export const MATERIAL_CHUNK_OVERLAP = 120;
+export const VECTOR_RETRIEVAL_WEIGHT = 0.75;
+export const LEXICAL_RETRIEVAL_WEIGHT = 0.25;
 
 export interface RetrievedMaterialChunk extends PersonaMaterialContext {
   chunkIndex: number;
@@ -167,19 +169,77 @@ export function mergeRetrievedMaterialChunks(
   vectorChunks: RetrievedMaterialChunk[],
   lexicalChunks: RetrievedMaterialChunk[]
 ): RetrievedMaterialChunk[] {
-  const selected: RetrievedMaterialChunk[] = [];
-  const seen = new Set<string>();
-  let usedCharacters = 0;
+  const keyFor = (chunk: RetrievedMaterialChunk) =>
+    `${chunk.id}:${chunk.chunkIndex}:${chunk.content}`;
+  const candidates = new Map<string, {
+    chunk: RetrievedMaterialChunk;
+    vectorIndex: number;
+    lexicalIndex: number;
+  }>();
+  const vectorScores = new Map<string, number>();
+  const lexicalScores = new Map<string, number>();
 
-  for (const chunk of [...vectorChunks, ...lexicalChunks]) {
+  vectorChunks.forEach((chunk, index) => {
+    const key = keyFor(chunk);
+    candidates.set(key, {
+      chunk,
+      vectorIndex: index,
+      lexicalIndex: Number.MAX_SAFE_INTEGER,
+    });
+    vectorScores.set(key, Math.max(vectorScores.get(key) || 0, chunk.relevanceScore));
+  });
+  lexicalChunks.forEach((chunk, index) => {
+    const key = keyFor(chunk);
+    const existing = candidates.get(key);
+    candidates.set(key, existing
+      ? { ...existing, lexicalIndex: Math.min(existing.lexicalIndex, index) }
+      : { chunk, vectorIndex: Number.MAX_SAFE_INTEGER, lexicalIndex: index });
+    lexicalScores.set(key, Math.max(lexicalScores.get(key) || 0, chunk.relevanceScore));
+  });
+
+  const normalize = (scores: Map<string, number>) => {
+    if (!scores.size) return new Map<string, number>();
+    const values = [...scores.values()];
+    const minimum = Math.min(...values);
+    const maximum = Math.max(...values);
+    if (maximum === minimum) {
+      return new Map([...scores.keys()].map((key) => [key, maximum === 0 ? 0 : 1]));
+    }
+    return new Map([...scores].map(([key, value]) => [
+      key,
+      (value - minimum) / (maximum - minimum),
+    ]));
+  };
+  const normalizedVector = normalize(vectorScores);
+  const normalizedLexical = normalize(lexicalScores);
+  const activeVectorWeight = vectorScores.size ? VECTOR_RETRIEVAL_WEIGHT : 0;
+  const activeLexicalWeight = lexicalScores.size ? LEXICAL_RETRIEVAL_WEIGHT : 0;
+  const activeWeight = activeVectorWeight + activeLexicalWeight || 1;
+  const ranked = [...candidates].map(([key, candidate]) => ({
+    ...candidate,
+    score: (
+      activeVectorWeight * (normalizedVector.get(key) || 0)
+      + activeLexicalWeight * (normalizedLexical.get(key) || 0)
+    ) / activeWeight,
+  })).sort((left, right) =>
+    right.score - left.score
+    || left.vectorIndex - right.vectorIndex
+    || left.lexicalIndex - right.lexicalIndex
+  );
+
+  const selected: RetrievedMaterialChunk[] = [];
+  let usedCharacters = 0;
+  for (const candidate of ranked) {
     if (selected.length >= MAX_RETRIEVAL_CHUNKS) break;
-    const key = `${chunk.id}:${chunk.chunkIndex}:${chunk.content}`;
+    const chunk = candidate.chunk;
     const contentLength = chunk.content?.length || 0;
-    if (seen.has(key) || !contentLength || usedCharacters + contentLength > MAX_RETRIEVAL_CHARACTERS) {
+    if (!contentLength || usedCharacters + contentLength > MAX_RETRIEVAL_CHARACTERS) {
       continue;
     }
-    seen.add(key);
-    selected.push(chunk);
+    selected.push({
+      ...chunk,
+      relevanceScore: Number(candidate.score.toFixed(6)),
+    });
     usedCharacters += contentLength;
   }
   return selected;

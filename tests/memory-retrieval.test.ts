@@ -49,7 +49,7 @@ test('uses the same deterministic chunks for persistence and lexical retrieval',
   assert.ok(retrieved.every((item) => chunks.includes(item.content || '')));
 });
 
-test('merges vector results before lexical fallback without duplicate chunks', () => {
+test('weighted hybrid merge keeps strong vector evidence and removes duplicate chunks', () => {
   const vector = [{
     id: 'tea', title: '喝茶习惯', type: 'text', content: '爱喝淡茉莉花茶。',
     chunkIndex: 0, totalChunks: 1, relevanceScore: 0.91,
@@ -64,4 +64,20 @@ test('merges vector results before lexical fallback without duplicate chunks', (
 
   const merged = mergeRetrievedMaterialChunks(vector, lexical);
   assert.deepEqual(merged.map((chunk) => chunk.id), ['tea', 'school']);
+});
+
+test('weighted hybrid merge can promote strong lexical evidence within semantic candidates', () => {
+  const vector = [
+    { id: 'a', title: '甲', type: 'text', content: '甲', chunkIndex: 0, totalChunks: 1, relevanceScore: 1 },
+    { id: 'b', title: '乙', type: 'text', content: '乙', chunkIndex: 0, totalChunks: 1, relevanceScore: 0.95 },
+    { id: 'c', title: '丙', type: 'text', content: '丙', chunkIndex: 0, totalChunks: 1, relevanceScore: 0.1 },
+  ];
+  const lexical = [
+    { ...vector[1], relevanceScore: 10 },
+    { ...vector[0], relevanceScore: 0 },
+    { ...vector[2], relevanceScore: 0 },
+  ];
+
+  const merged = mergeRetrievedMaterialChunks(vector, lexical);
+  assert.equal(merged[0].id, 'b');
 });
