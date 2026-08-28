@@ -86,6 +86,14 @@ test('chat API saves provider replies through the trusted server boundary', () =
     /const \{ data: assistantMessage, error: assistantMessageError \} = await adminSupabase/
   );
   assert.match(chatApi, /role: 'assistant'/);
+  assert.match(chatApi, /shouldReviewPersonaAnswer/);
+  assert.match(chatApi, /PERSONA_GROUNDING_REVIEW_VERSION/);
+  assert.match(chatApi, /groundingReviewApplied: groundingReviewRequired/);
+  assert.match(chatApi, /groundingReviewReducedToPrimarySource/);
+  assert.match(
+    chatApi,
+    /grounding_review_failed[\s\S]*为避免无依据内容，本次未返回回答/
+  );
 });
 
 test('chat keeps a saved user message visible when downstream AI processing fails', () => {

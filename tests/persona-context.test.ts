@@ -27,6 +27,8 @@ test('builds a grounded prompt with explicit unknown and disclosure rules', () =
   assert.match(result.prompt, /不得创作资料中没有逐字记录的本人或亲友原话/);
   assert.match(result.prompt, /不要用问题、例子或想象替这段经历补充/);
   assert.match(result.prompt, /不得写 \[资料1–7\]/);
+  assert.match(result.prompt, /吃饭、列计划、喝茶等人物习惯不能替代当前问题/);
+  assert.match(result.prompt, /资料没有直接记录，就说明无法确认/);
   assert.match(result.prompt, /默认只写 2～4 个短句/);
   assert.match(result.prompt, /第一句必须以“从现有资料看”或“我只能推测”开头/);
   assert.match(result.prompt, /不要举可能的答案/);

@@ -1,7 +1,7 @@
 import { getChatProvider } from './ai-provider';
 
 export const CHAT_MODEL = getChatProvider().chatModel;
-export const DEFAULT_CHAT_TEMPERATURE = 0.2;
+export const DEFAULT_CHAT_TEMPERATURE = 0;
 export const DEFAULT_CHAT_MAX_TOKENS = 600;
 export const MAX_CHAT_TOKENS = 1000;
 

@@ -5,9 +5,37 @@ import {
   MAX_RETRIEVAL_CHUNKS,
   MAX_RETRIEVAL_CHARACTERS,
   chunkMaterialContent,
+  buildMemoryRetrievalQuery,
   mergeRetrievedMaterialChunks,
   retrieveRelevantMaterialChunks,
 } from '../src/lib/memory-retrieval';
+
+test('adds the previous user need only for context-dependent follow-up retrieval', () => {
+  const conversation = [
+    { role: 'user', content: '我明天面试，紧张得没吃饭。' },
+    { role: 'assistant', content: '先吃口热的。' },
+    { role: 'user', content: '那我今晚先做哪一步？' },
+  ];
+  assert.equal(
+    buildMemoryRetrievalQuery('那我今晚先做哪一步？', conversation),
+    '我明天面试，紧张得没吃饭。\n当前追问：那我今晚先做哪一步？'
+  );
+  assert.equal(buildMemoryRetrievalQuery('你喜欢喝什么茶？', conversation), '你喜欢喝什么茶？');
+});
+
+test('maps sleep and direct praise wording to their care concepts', () => {
+  const sleep = retrieveRelevantMaterialChunks([
+    { id: 'plan', title: '计划', type: 'text', content: '事情一件一件做。' },
+    { id: 'sleep', title: '休息', type: 'text', content: '今晚早点睡。' },
+  ], '我又熬到凌晨两点。');
+  assert.equal(sleep[0].id, 'sleep');
+
+  const praise = retrieveRelevantMaterialChunks([
+    { id: 'plan', title: '计划', type: 'text', content: '列三件事。' },
+    { id: 'praise', title: '表达', type: 'text', content: '好，替你高兴。' },
+  ], '你能夸我一下吗？');
+  assert.equal(praise[0].id, 'praise');
+});
 
 test('limits generation context to the evaluated top three memory chunks', () => {
   assert.equal(MAX_RETRIEVAL_CHUNKS, 3);

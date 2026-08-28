@@ -8,6 +8,7 @@ import { consumeChatQuota } from '@/lib/chat-rate-limit';
 import {
   MAX_RETRIEVAL_MATERIALS,
   MEMORY_RETRIEVAL_VERSION,
+  buildMemoryRetrievalQuery,
   mergeRetrievedMaterialChunks,
   retrieveRelevantMaterialChunks,
   type RetrievedMaterialChunk,
@@ -22,6 +23,12 @@ import {
   prepareConversationContext,
 } from '@/lib/persona-context';
 import { hasActiveAiDataProcessingConsent } from '@/lib/ai-processing-consent';
+import {
+  buildPersonaGroundingReviewMessages,
+  finalizePersonaGroundingReview,
+  PERSONA_GROUNDING_REVIEW_VERSION,
+  shouldReviewPersonaAnswer,
+} from '@/lib/persona-grounding';
 
 interface PersistedMessage {
   id: string;
@@ -153,11 +160,17 @@ export default async function handler(
       });
     }
 
-    const lexicalMaterials = retrieveRelevantMaterialChunks(materials || [], message.trim());
+    const conversationContext = prepareConversationContext(
+      recentMessages && recentMessages.length > 0
+        ? [...recentMessages].reverse()
+        : [{ role: 'user', content: message.trim() }]
+    );
+    const retrievalQuery = buildMemoryRetrievalQuery(message.trim(), conversationContext);
+    const lexicalMaterials = retrieveRelevantMaterialChunks(materials || [], retrievalQuery);
     const vectorRetrieval = await retrieveVectorChunks(
       user.client,
       profileId,
-      message.trim(),
+      retrievalQuery,
       requestContext
     );
     if (vectorRetrieval.status === 'unavailable') {
@@ -173,11 +186,6 @@ export default async function handler(
       ? 'vector+lexical'
       : 'lexical-unindexed';
     const personaContext = buildPersonaPrompt(profile, retrievedMaterials, message.trim());
-    const conversationContext = prepareConversationContext(
-      recentMessages && recentMessages.length > 0
-        ? [...recentMessages].reverse()
-        : [{ role: 'user', content: message.trim() }]
-    );
 
     const response = await postOpenAiJson<{
       error?: { message?: string };
@@ -217,7 +225,57 @@ export default async function handler(
     }
 
     if (data.choices && data.choices[0]?.message?.content) {
-      const content = data.choices[0].message.content as string;
+      const draftContent = data.choices[0].message.content.trim();
+      const groundingReviewRequired = shouldReviewPersonaAnswer({
+        question: message.trim(),
+        draft: draftContent,
+        conversation: conversationContext,
+        materials: retrievedMaterials,
+      });
+      let content = draftContent;
+      let groundingReviewReducedToPrimarySource = false;
+
+      if (groundingReviewRequired) {
+        const groundingReview = buildPersonaGroundingReviewMessages({
+          question: message.trim(),
+          draft: draftContent,
+          conversation: conversationContext,
+          materials: retrievedMaterials,
+        });
+        const reviewResponse = await postOpenAiJson<{
+          choices?: Array<{ message?: { content?: string } }>;
+        }>(`${chatProvider.baseUrl}/chat/completions`, {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${chatProvider.apiKey}`,
+        }, {
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: `${personaContext.prompt}${groundingReview.systemSuffix}` },
+            { role: 'user', content: groundingReview.userContent },
+          ],
+          temperature: 0,
+          max_tokens: Math.min(selectedMaxTokens, 300),
+        });
+        const reviewedContent = reviewResponse.data.choices?.[0]?.message?.content?.trim();
+
+        if (!reviewResponse.ok || !reviewedContent) {
+          await logApiError(requestContext, 'ai_provider.grounding_review_failed', {
+            outcome: chatProvider.name,
+            providerStatus: reviewResponse.status,
+          });
+          return res.status(reviewResponse.status === 429 ? 429 : 503).json({
+            error: reviewResponse.status === 429
+              ? 'AI 服务当前额度或请求频率受限，请稍后重试'
+              : 'AI 回答依据校验暂时不可用，为避免无依据内容，本次未返回回答',
+            model: selectedModel,
+            userMessage: savedUserMessage,
+          });
+        }
+        const finalizedReview = finalizePersonaGroundingReview(reviewedContent);
+        content = finalizedReview.answer;
+        groundingReviewReducedToPrimarySource = finalizedReview.reducedToPrimarySource;
+      }
+
       const { data: assistantMessage, error: assistantMessageError } = await adminSupabase
         .from('messages')
         .insert({
@@ -228,7 +286,11 @@ export default async function handler(
           retrieved_context: JSON.stringify({
             version: PERSONA_CONTEXT_VERSION,
             retrievalVersion: MEMORY_RETRIEVAL_VERSION,
+            groundingReviewVersion: PERSONA_GROUNDING_REVIEW_VERSION,
+            groundingReviewApplied: groundingReviewRequired,
+            groundingReviewReducedToPrimarySource,
             retrievalStrategy,
+            retrievalUsedConversationContext: retrievalQuery !== message.trim(),
             materialIds: personaContext.sourceIds,
             sources: personaContext.sources,
             candidateMaterialCount: materials?.length || 0,

@@ -79,6 +79,9 @@ const INFERENCE_PATTERNS = [
   '可能',
   '推测',
   '不能确定',
+  '没有记录',
+  '资料里没有',
+  '无法确认',
 ];
 
 const DISCLOSURE_PATTERNS = ['AI', '人工智能', '模拟', '不是顾清禾本人', '不是真人'];

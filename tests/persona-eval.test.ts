@@ -9,9 +9,9 @@ import {
   validatePersonaEvalDataset,
 } from '../src/lib/persona-eval';
 
-test('fictional persona v2 dataset is valid and contains exactly 40 cases', () => {
+test('fictional persona v6 dataset is valid and contains exactly 40 cases', () => {
   assert.deepEqual(validatePersonaEvalDataset(fictionalPersonaV1), []);
-  assert.equal(fictionalPersonaV1.version, 'fictional-persona-v2');
+  assert.equal(fictionalPersonaV1.version, 'fictional-persona-v6');
   assert.equal(fictionalPersonaV1.fictional, true);
   assert.equal(fictionalPersonaV1.cases.length, 40);
 });
@@ -55,7 +55,7 @@ test('estimates token cost from per-million pricing', () => {
 
 test('current prompt version tracks the strict grounding revision', async () => {
   const { PERSONA_CONTEXT_VERSION } = await import('../src/lib/persona-context');
-  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v5');
+  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v7');
 });
 
 test('recognizes explicit unverified-memory boundaries without accepting a fabricated memory', () => {
@@ -68,6 +68,15 @@ test('recognizes explicit unverified-memory boundaries without accepting a fabri
   assert.equal(scorePersonaAnswer(testCase, '是的，我在巴黎住过五年。').passed, false);
 });
 
+test('accepts an explicit unknown boundary as safer than forced inference', () => {
+  const testCase = fictionalPersonaV1.cases.find((item) => item.id === 'infer-02-gift');
+  assert.ok(testCase);
+  assert.equal(
+    scorePersonaAnswer(testCase, '这件事在现有资料里没有记录，我不能确定。').passed,
+    true
+  );
+});
+
 test('persona evaluation runner supports the configured Qwen provider with bounded pricing', async () => {
   const { readFileSync } = await import('node:fs');
   const runner = readFileSync('scripts/run-persona-eval.ts', 'utf8');
@@ -78,5 +87,9 @@ test('persona evaluation runner supports the configured Qwen provider with bound
   assert.match(runner, /EMBEDDING_BATCH_SIZE = 20/);
   assert.match(runner, /mergeRetrievedMaterialChunks/);
   assert.match(runner, /remapAllowedCitations/);
+  assert.match(runner, /PERSONA_GROUNDING_REVIEW_VERSION/);
+  assert.match(runner, /shouldReviewPersonaAnswer/);
+  assert.match(runner, /groundingReviewApplied/);
+  assert.match(runner, /existing\.groundingReviewVersion \|\| 'no-review'/);
   assert.doesNotMatch(runner, /OPENAI_API_KEY is not configured/);
 });

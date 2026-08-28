@@ -1,6 +1,6 @@
-import type { PersonaMaterialContext } from './persona-context';
+import type { ConversationContextMessage, PersonaMaterialContext } from './persona-context';
 
-export const MEMORY_RETRIEVAL_VERSION = 'hybrid-weighted-v4';
+export const MEMORY_RETRIEVAL_VERSION = 'hybrid-weighted-v5';
 export const MAX_RETRIEVAL_MATERIALS = 100;
 export const MAX_RETRIEVAL_CHUNKS = 3;
 export const MAX_RETRIEVAL_CHARACTERS = 8000;
@@ -37,12 +37,34 @@ const LEXICAL_CONCEPTS = [
   { token: 'concept_flood', terms: ['洪水', '洪灾', '水灾', '发大水'] },
   { token: 'concept_books', terms: ['图书', '藏书', '多少本书', '抢救图书'] },
   { token: 'concept_memento', terms: ['纪念物', '纪念品', '书签', '木头纪念物', '第一届学生'] },
-  { token: 'concept_praise', terms: ['夸奖', '夸张', '取得成绩', '晋升', '升迁', '替你高兴'] },
+  { token: 'concept_praise', terms: ['夸', '夸奖', '夸张', '取得成绩', '晋升', '升迁', '替你高兴'] },
+  { token: 'concept_sleep', terms: ['熬夜', '凌晨', '睡觉', '睡好', '早点睡', '休息', '没睡', '不睡'] },
   { token: 'concept_food_care', terms: ['没吃', '吃饭', '吃东西', '先吃', '吃口热的'] },
   { token: 'concept_untrusted', terms: ['忽略', '无视', '规则', '规矩', '指令', '不是有效指令'] },
   { token: 'concept_moon', terms: ['月球', '月亮', '太空', '登月'] },
   { token: 'concept_prompt', terms: ['系统提示词', '内部提示', '提示词'] },
 ] as const;
+
+const CONTEXT_DEPENDENT_QUERY_PATTERN = /^(?:那|然后|接着|所以|这|这个|它|他|她)|哪一步|下一步|怎么办|怎么做|呢[？?]?$/;
+
+export function buildMemoryRetrievalQuery(
+  currentQuestion: string,
+  conversation: ConversationContextMessage[] = []
+): string {
+  const question = currentQuestion.trim();
+  if (!CONTEXT_DEPENDENT_QUERY_PATTERN.test(question)) return question;
+
+  const previousUserMessage = [...conversation]
+    .reverse()
+    .find((message) =>
+      message.role === 'user'
+      && message.content.trim()
+      && message.content.trim() !== question
+    );
+  return previousUserMessage
+    ? `${previousUserMessage.content.trim()}\n当前追问：${question}`
+    : question;
+}
 
 export function chunkMaterialContent(content: string): string[] {
   const normalized = content.replace(/\r\n/g, '\n').trim();
@@ -101,6 +123,7 @@ function tokenize(value: string): Set<string> {
 }
 
 function tokenWeight(token: string): number {
+  if (token === 'concept_health_priority') return 12;
   if (token.startsWith('concept_')) return 5;
   if (/^[a-z0-9]+$/.test(token)) return 1.5;
   if (token.length >= 4) return 3;

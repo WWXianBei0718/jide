@@ -7,6 +7,7 @@ import { createEmbeddings } from '../src/lib/ai-embeddings';
 import { getChatProvider, getEmbeddingProvider, type AiProviderName } from '../src/lib/ai-provider';
 import {
   MAX_RETRIEVAL_CHUNKS,
+  buildMemoryRetrievalQuery,
   mergeRetrievedMaterialChunks,
   retrieveRelevantMaterialChunks,
   type RetrievedMaterialChunk,
@@ -24,6 +25,12 @@ import {
   PERSONA_CONTEXT_VERSION,
   prepareConversationContext,
 } from '../src/lib/persona-context';
+import {
+  buildPersonaGroundingReviewMessages,
+  finalizePersonaGroundingReview,
+  PERSONA_GROUNDING_REVIEW_VERSION,
+  shouldReviewPersonaAnswer,
+} from '../src/lib/persona-grounding';
 
 const MODEL_PRICING = {
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
@@ -45,6 +52,9 @@ interface CaseResult {
   category: EvalCategory;
   prompt: string;
   answer: string;
+  draftAnswer?: string;
+  groundingReviewApplied?: boolean;
+  groundingReviewReducedToPrimarySource?: boolean;
   passed: boolean;
   checks: Record<string, boolean>;
   citations: string[];
@@ -65,6 +75,8 @@ interface ModelResult {
   inputTokens: number;
   outputTokens: number;
   estimatedCostUsd: number;
+  groundingReviewCount: number;
+  groundingReductionCount: number;
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -98,7 +110,14 @@ async function buildRetrievalContexts(
   const materialVectors = await embedInBatches(fictionalPersonaV1.materials.map((material) =>
     `${material.title}\n${material.content || ''}`
   ));
-  const queryVectors = await embedInBatches(evaluationCases.map((item) => item.prompt));
+  const retrievalQueries = evaluationCases.map((item) => buildMemoryRetrievalQuery(
+    item.prompt,
+    prepareConversationContext([
+      ...(item.history || []),
+      { role: 'user', content: item.prompt },
+    ])
+  ));
+  const queryVectors = await embedInBatches(retrievalQueries);
   const contexts = new Map<string, RetrievedMaterialChunk[]>();
 
   evaluationCases.forEach((testCase, caseIndex) => {
@@ -118,7 +137,7 @@ async function buildRetrievalContexts(
       .map(({ materialIndex: _materialIndex, ...material }) => material);
     const lexicalChunks = retrieveRelevantMaterialChunks(
       fictionalPersonaV1.materials,
-      testCase.prompt
+      retrievalQueries[caseIndex]
     );
     contexts.set(
       testCase.id,
@@ -133,6 +152,12 @@ interface JsonHttpResponse {
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
+}
+
+interface ChatCompletionData {
+  error?: { message?: string };
+  choices?: Array<{ message?: { content?: string } }>;
+  usage?: AiUsage;
 }
 
 async function postJson(url: string, headers: Record<string, string>, body: unknown): Promise<JsonHttpResponse> {
@@ -176,6 +201,33 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
   });
 }
 
+async function requestChatCompletion(
+  provider: ReturnType<typeof getChatProvider>,
+  model: EvalModel,
+  body: unknown
+): Promise<{ response: JsonHttpResponse; data: ChatCompletionData }> {
+  let response: JsonHttpResponse | undefined;
+  let data: ChatCompletionData = {};
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    response = await postJson(`${provider.baseUrl}/chat/completions`, {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${provider.apiKey}`,
+    }, body);
+    data = (await response.json()) as ChatCompletionData;
+    const errorMessage = data.error?.message || '';
+    const isMinuteRateLimit = response.status === 429
+      && /(?:requests per min|RPM|rate limit|限流|频率)/i.test(errorMessage);
+    if (!isMinuteRateLimit || attempt === 7) break;
+    const waitMilliseconds = 55_000;
+    process.stdout.write(`[${model}] rate limited; waiting ${Math.ceil(waitMilliseconds / 1000)}s\n`);
+    await wait(waitMilliseconds);
+  }
+
+  if (!response) throw new Error('AI provider request did not return a response');
+  return { response, data };
+}
+
 function loadLocalEnv(): void {
   const path = resolve(process.cwd(), '.env.local');
   if (!existsSync(path)) return;
@@ -210,6 +262,7 @@ function archiveExistingReport(outputDirectory: string): void {
   const existing = JSON.parse(readFileSync(latestJsonPath, 'utf8')) as {
     dataset?: string;
     promptVersion?: string;
+    groundingReviewVersion?: string;
     suite?: string;
     results?: Array<{ provider?: string; model?: string }>;
   };
@@ -218,7 +271,7 @@ function archiveExistingReport(outputDirectory: string): void {
   const providersAndModels = (existing.results || [])
     .map((result) => `${result.provider || 'openai'}-${result.model || 'unknown'}`)
     .join('_') || 'unknown-model';
-  const archiveName = `${existing.dataset}--${existing.promptVersion}--${existing.suite || 'full'}--${providersAndModels}`
+  const archiveName = `${existing.dataset}--${existing.promptVersion}--${existing.groundingReviewVersion || 'no-review'}--${existing.suite || 'full'}--${providersAndModels}`
     .replace(/[^A-Za-z0-9._-]/g, '-');
   writeFileSync(resolve(outputDirectory, `${archiveName}.json`), readFileSync(latestJsonPath));
   if (existsSync(latestMarkdownPath)) {
@@ -250,6 +303,10 @@ function aggregateModelResult(
     inputTokens: cases.reduce((sum, item) => sum + item.usage.inputTokens, 0),
     outputTokens: cases.reduce((sum, item) => sum + item.usage.outputTokens, 0),
     estimatedCostUsd: cases.reduce((sum, item) => sum + item.estimatedCostUsd, 0),
+    groundingReviewCount: cases.filter((item) => item.groundingReviewApplied).length,
+    groundingReductionCount: cases.filter(
+      (item) => item.groundingReviewReducedToPrimarySource
+    ).length,
   };
 }
 
@@ -325,44 +382,69 @@ async function runModel(
       model,
       messages: [{ role: 'system', content: persona.prompt }, ...messages],
       ...(model === 'gpt-4o-mini' || model === 'qwen-plus'
-        ? { temperature: 0.2, max_tokens: 240 }
+        ? { temperature: 0, max_tokens: 240 }
         : { reasoning_effort: 'none', max_completion_tokens: 240 }),
     };
-    let response: JsonHttpResponse | undefined;
-    let data: {
-      error?: { message?: string };
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: AiUsage;
-    } = {};
-
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      response = await postJson(`${provider.baseUrl}/chat/completions`, {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${provider.apiKey}`,
-      }, requestBody);
-      data = (await response.json()) as typeof data;
-      const errorMessage = data.error?.message || '';
-      const isMinuteRateLimit = response.status === 429
-        && /(?:requests per min|RPM|rate limit|限流|频率)/i.test(errorMessage);
-      if (!isMinuteRateLimit || attempt === 7) break;
-      const waitMilliseconds = 55_000;
-      process.stdout.write(`[${model}] rate limited; waiting ${Math.ceil(waitMilliseconds / 1000)}s\n`);
-      await wait(waitMilliseconds);
-    }
-
-    if (!response?.ok) {
+    const draftResult = await requestChatCompletion(provider, model, requestBody);
+    if (!draftResult.response.ok) {
       return aggregateModelResult(
         provider.name,
         model,
         'unavailable',
         cases,
-        data.error?.message || `AI provider returned HTTP ${response?.status || 0}`
+        draftResult.data.error?.message
+          || `AI provider returned HTTP ${draftResult.response.status}`
       );
     }
 
-    const answer = data.choices?.[0]?.message?.content?.trim() || '';
-    const inputTokens = data.usage?.prompt_tokens || 0;
-    const outputTokens = data.usage?.completion_tokens || 0;
+    const draftAnswer = draftResult.data.choices?.[0]?.message?.content?.trim() || '';
+    const groundingReviewApplied = shouldReviewPersonaAnswer({
+      question: testCase.prompt,
+      draft: draftAnswer,
+      conversation: messages,
+      materials: retrievedMaterials,
+    });
+    let answer = draftAnswer;
+    let reviewUsage: AiUsage = {};
+    let groundingReviewReducedToPrimarySource = false;
+
+    if (groundingReviewApplied) {
+      const review = buildPersonaGroundingReviewMessages({
+        question: testCase.prompt,
+        draft: draftAnswer,
+        conversation: messages,
+        materials: retrievedMaterials,
+      });
+      const reviewResult = await requestChatCompletion(provider, model, {
+        model,
+        messages: [
+          { role: 'system', content: `${persona.prompt}${review.systemSuffix}` },
+          { role: 'user', content: review.userContent },
+        ],
+        temperature: 0,
+        max_tokens: 240,
+      });
+      const reviewedAnswer = reviewResult.data.choices?.[0]?.message?.content?.trim() || '';
+      if (!reviewResult.response.ok || !reviewedAnswer) {
+        return aggregateModelResult(
+          provider.name,
+          model,
+          'unavailable',
+          cases,
+          reviewResult.data.error?.message
+            || `Grounding review returned HTTP ${reviewResult.response.status}`
+        );
+      }
+      const finalizedReview = finalizePersonaGroundingReview(reviewedAnswer);
+      answer = finalizedReview.answer;
+      groundingReviewReducedToPrimarySource = finalizedReview.reducedToPrimarySource;
+      reviewUsage = reviewResult.data.usage || {};
+    }
+
+    const inputTokens = (draftResult.data.usage?.prompt_tokens || 0)
+      + (reviewUsage.prompt_tokens || 0);
+    const outputTokens = (draftResult.data.usage?.completion_tokens || 0)
+      + (reviewUsage.completion_tokens || 0);
     const pricing = MODEL_PRICING[model];
     const estimatedCostUsd = estimateOpenAiCostUsd(
       inputTokens,
@@ -379,6 +461,9 @@ async function runModel(
       category: testCase.category,
       prompt: testCase.prompt,
       answer,
+      ...(groundingReviewApplied ? { draftAnswer } : {}),
+      groundingReviewApplied,
+      groundingReviewReducedToPrimarySource,
       passed: score.passed,
       checks: score.checks,
       citations: score.citations,
@@ -407,6 +492,7 @@ function createMarkdownReport(
     '',
     `- 数据集：\`${fictionalPersonaV1.version}\`（完全虚构，不含真实用户资料）`,
     `- 人格提示词：\`${PERSONA_CONTEXT_VERSION}\``,
+    `- 输出依据审校：\`${PERSONA_GROUNDING_REVIEW_VERSION}\`（仅高风险回答触发）`,
     `- 评测模式：\`${suite}\``,
     `- 生成时间：${new Date().toISOString()}`,
     `- 本次题数：${caseCount}（完整题库 ${fictionalPersonaV1.cases.length}）`,
@@ -419,10 +505,10 @@ function createMarkdownReport(
     '',
     '## 模型对比',
     '',
-    '| 供应商 | 模型 | 状态 | 自动通过率 | 输入 token | 输出 token | 估算成本 |',
-    '|---|---|---|---:|---:|---:|---:|',
+    '| 供应商 | 模型 | 状态 | 自动通过率 | 审校题数 | 单源收敛 | 输入 token | 输出 token | 估算成本 |',
+    '|---|---|---|---:|---:|---:|---:|---:|---:|',
     ...results.map((result) =>
-      `| ${result.provider} | ${result.model} | ${result.status} | ${percentage(result.passRate)} | ${result.inputTokens} | ${result.outputTokens} | $${result.estimatedCostUsd.toFixed(6)} |`
+      `| ${result.provider} | ${result.model} | ${result.status} | ${percentage(result.passRate)} | ${result.groundingReviewCount} | ${result.groundingReductionCount} | ${result.inputTokens} | ${result.outputTokens} | $${result.estimatedCostUsd.toFixed(6)} |`
     ),
     '',
     '## 分类成绩',
@@ -524,9 +610,10 @@ async function main(): Promise<void> {
   const previousPath = resolve(outputDirectory, 'latest.json');
   const usePrevious = (process.argv.includes('--resume') || process.argv.includes('--rescore-only')) && existsSync(previousPath);
   const previous = usePrevious
-    ? JSON.parse(readFileSync(previousPath, 'utf8')) as {
+      ? JSON.parse(readFileSync(previousPath, 'utf8')) as {
         dataset?: string;
         promptVersion?: string;
+        groundingReviewVersion?: string;
         suite?: string;
         results?: ModelResult[];
       }
@@ -534,6 +621,7 @@ async function main(): Promise<void> {
   const previousResults = (
     previous?.dataset === fictionalPersonaV1.version &&
     previous.promptVersion === PERSONA_CONTEXT_VERSION &&
+    previous.groundingReviewVersion === PERSONA_GROUNDING_REVIEW_VERSION &&
     (previous.suite || 'full') === suite
   ) ? previous.results || [] : [];
   const priorCasesByModel = new Map<EvalModel, CaseResult[]>(
@@ -580,6 +668,7 @@ async function main(): Promise<void> {
   const payload = {
     dataset: fictionalPersonaV1.version,
     promptVersion: PERSONA_CONTEXT_VERSION,
+    groundingReviewVersion: PERSONA_GROUNDING_REVIEW_VERSION,
     suite,
     generatedAt: new Date().toISOString(),
     fictional: true,
