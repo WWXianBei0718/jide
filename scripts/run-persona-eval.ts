@@ -607,7 +607,11 @@ async function main(): Promise<void> {
   }
 
   const outputDirectory = resolve(process.cwd(), 'evals', 'results');
-  const previousPath = resolve(outputDirectory, 'latest.json');
+  const outputBasename = process.env.PERSONA_EVAL_OUTPUT_BASENAME?.trim() || 'latest';
+  if (!/^[a-z0-9][a-z0-9._-]{0,80}$/i.test(outputBasename)) {
+    throw new Error('PERSONA_EVAL_OUTPUT_BASENAME contains unsupported characters.');
+  }
+  const previousPath = resolve(outputDirectory, `${outputBasename}.json`);
   const usePrevious = (process.argv.includes('--resume') || process.argv.includes('--rescore-only')) && existsSync(previousPath);
   const previous = usePrevious
       ? JSON.parse(readFileSync(previousPath, 'utf8')) as {
@@ -663,7 +667,7 @@ async function main(): Promise<void> {
   }
 
   mkdirSync(outputDirectory, { recursive: true });
-  archiveExistingReport(outputDirectory);
+  if (outputBasename === 'latest') archiveExistingReport(outputDirectory);
   const totalCost = results.reduce((sum, result) => sum + result.estimatedCostUsd, 0);
   const payload = {
     dataset: fictionalPersonaV1.version,
@@ -681,12 +685,14 @@ async function main(): Promise<void> {
     estimatedCostUsd: totalCost,
     results,
   };
-  writeFileSync(resolve(outputDirectory, 'latest.json'), `${JSON.stringify(payload, null, 2)}\n`);
+  writeFileSync(resolve(outputDirectory, `${outputBasename}.json`), `${JSON.stringify(payload, null, 2)}\n`);
   writeFileSync(
-    resolve(outputDirectory, 'latest.md'),
+    resolve(outputDirectory, `${outputBasename}.md`),
     createMarkdownReport(results, totalCost, suite, evaluationCases.length)
   );
-  process.stdout.write(`Results written to evals/results/latest.md (estimated cost $${totalCost.toFixed(6)})\n`);
+  process.stdout.write(
+    `Results written to evals/results/${outputBasename}.md (estimated cost $${totalCost.toFixed(6)})\n`
+  );
 }
 
 main().catch((error) => {

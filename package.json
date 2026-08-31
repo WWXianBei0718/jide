@@ -18,6 +18,8 @@
     "eval:persona:resume": "tsx scripts/run-persona-eval.ts --resume",
     "eval:persona:resume:smoke": "tsx scripts/run-persona-eval.ts --resume --smoke",
     "eval:persona:rescore": "tsx scripts/run-persona-eval.ts --rescore-only",
+    "eval:persona:stability:dry": "tsx scripts/run-persona-stability-eval.ts --dry-run",
+    "eval:persona:stability": "tsx scripts/run-persona-stability-eval.ts",
     "eval:retrieval": "tsx scripts/run-retrieval-eval.ts",
     "eval:retrieval:semantic:dry": "node --env-file=.env.local --import tsx scripts/run-semantic-retrieval-eval.ts",
     "eval:retrieval:semantic": "node --env-file=.env.local --import tsx scripts/run-semantic-retrieval-eval.ts --execute",

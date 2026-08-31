@@ -39,9 +39,13 @@ npm run eval:persona:dry
 npm run eval:persona
 npm run eval:persona:smoke
 npm run eval:persona:resume
+npm run eval:persona:stability:dry
+npm run eval:persona:stability
 ```
 
 `eval:persona` 默认运行完整 40 题；`eval:persona:smoke` 是开发中的可选 12 题快速检查，不能替代正式验证。评测会先按当前向量与混合检索配置选择 3 个片段，再使用与生产聊天相同的高风险依据审校和单源收敛规则。报告写入 `evals/results/latest.md`；更换规则时，旧报告会按数据集、提示词、依据审校、评测模式和供应商版本自动归档。真实运行前必须确认当前 AI 供应商预算；不要把真实人物资料加入公共或未授权评测集。
+
+`eval:persona:stability` 默认对同一套 40 题完整运行 3 轮，聊天成本硬上限为 0.10 美元，并把稳定通过、偶发波动和持续失败分开统计。临时单轮文件不会覆盖 `latest`，聚合报告写入 `evals/results/stability-latest.md`。其中“可检测依据风险”和“逐字一致度”都只是自动代理指标，不能代替逐句引用复核和人工盲评。
 
 本地 PDF Worker 默认只输出配置，不读取文件或写数据库：
 

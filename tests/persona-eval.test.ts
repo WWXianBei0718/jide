@@ -91,5 +91,7 @@ test('persona evaluation runner supports the configured Qwen provider with bound
   assert.match(runner, /shouldReviewPersonaAnswer/);
   assert.match(runner, /groundingReviewApplied/);
   assert.match(runner, /existing\.groundingReviewVersion \|\| 'no-review'/);
+  assert.match(runner, /PERSONA_EVAL_OUTPUT_BASENAME/);
+  assert.match(runner, /outputBasename === 'latest'/);
   assert.doesNotMatch(runner, /OPENAI_API_KEY is not configured/);
 });
