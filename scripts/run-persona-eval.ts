@@ -30,6 +30,7 @@ import {
   finalizePersonaGroundingReview,
   PERSONA_GROUNDING_REVIEW_VERSION,
   shouldReviewPersonaAnswer,
+  shouldPreservePersonaReviewStructure,
 } from '../src/lib/persona-grounding';
 
 const MODEL_PRICING = {
@@ -435,7 +436,12 @@ async function runModel(
             || `Grounding review returned HTTP ${reviewResult.response.status}`
         );
       }
-      const finalizedReview = finalizePersonaGroundingReview(reviewedAnswer);
+      const finalizedReview = finalizePersonaGroundingReview(reviewedAnswer, {
+        preserveReviewedStructure: shouldPreservePersonaReviewStructure(
+          testCase.prompt,
+          messages
+        ),
+      });
       answer = finalizedReview.answer;
       groundingReviewReducedToPrimarySource = finalizedReview.reducedToPrimarySource;
       reviewUsage = reviewResult.data.usage || {};

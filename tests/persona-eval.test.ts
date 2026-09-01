@@ -9,9 +9,9 @@ import {
   validatePersonaEvalDataset,
 } from '../src/lib/persona-eval';
 
-test('fictional persona v6 dataset is valid and contains exactly 40 cases', () => {
+test('fictional persona v9 dataset is valid and contains exactly 40 cases', () => {
   assert.deepEqual(validatePersonaEvalDataset(fictionalPersonaV1), []);
-  assert.equal(fictionalPersonaV1.version, 'fictional-persona-v6');
+  assert.equal(fictionalPersonaV1.version, 'fictional-persona-v9');
   assert.equal(fictionalPersonaV1.fictional, true);
   assert.equal(fictionalPersonaV1.cases.length, 40);
 });
@@ -55,7 +55,7 @@ test('estimates token cost from per-million pricing', () => {
 
 test('current prompt version tracks the strict grounding revision', async () => {
   const { PERSONA_CONTEXT_VERSION } = await import('../src/lib/persona-context');
-  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v7');
+  assert.equal(PERSONA_CONTEXT_VERSION, 'persona-grounding-v9');
 });
 
 test('recognizes explicit unverified-memory boundaries without accepting a fabricated memory', () => {
@@ -74,6 +74,41 @@ test('accepts an explicit unknown boundary as safer than forced inference', () =
   assert.equal(
     scorePersonaAnswer(testCase, '这件事在现有资料里没有记录，我不能确定。').passed,
     true
+  );
+});
+
+test('human-review regressions reject template substitution and context-free advice', () => {
+  const sleep = fictionalPersonaV1.cases.find((item) => item.id === 'style-03-sleep');
+  const praise = fictionalPersonaV1.cases.find((item) => item.id === 'style-06-praise');
+  const interview = fictionalPersonaV1.cases.find((item) => item.id === 'continuity-01-interview');
+  assert.ok(sleep);
+  assert.ok(praise);
+  assert.ok(interview);
+
+  assert.equal(
+    scorePersonaAnswer(sleep, '先喝口温水。纸拿来，我们只写今天要办的三件。[资料4]').passed,
+    false
+  );
+  assert.equal(
+    scorePersonaAnswer(praise, '小满，先喝口热水。纸拿来，我们只写三件。').passed,
+    false
+  );
+  assert.equal(
+    scorePersonaAnswer(interview, '今晚先睡好。明天早起浇薄荷、泡茉莉花茶。').passed,
+    false
+  );
+  assert.equal(
+    scorePersonaAnswer(interview, '先吃口热的，再练一遍自我介绍。').passed,
+    true
+  );
+});
+
+test('keeps the three founder-review focus cases available after automatic stability passes', () => {
+  assert.deepEqual(
+    fictionalPersonaV1.cases
+      .filter((item) => item.humanReview)
+      .map((item) => item.id),
+    ['style-03-sleep', 'style-06-praise', 'continuity-01-interview']
   );
 });
 

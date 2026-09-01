@@ -27,12 +27,20 @@ test('builds a grounded prompt with explicit unknown and disclosure rules', () =
   assert.match(result.prompt, /不得创作资料中没有逐字记录的本人或亲友原话/);
   assert.match(result.prompt, /不要用问题、例子或想象替这段经历补充/);
   assert.match(result.prompt, /不得写 \[资料1–7\]/);
+  assert.match(result.prompt, /明天面试”可以支持“今晚练习自我介绍/);
   assert.match(result.prompt, /吃饭、列计划、喝茶等人物习惯不能替代当前问题/);
   assert.match(result.prompt, /资料没有直接记录，就说明无法确认/);
+  assert.match(result.prompt, /表达样例、口头禅和高频习惯不是通用回答模板/);
+  assert.match(result.prompt, /情感请求必须先完成用户明确要求的情感动作/);
+  assert.match(result.prompt, /不得把人物自己的作息、饮食或爱好变成用户此刻要做的事/);
+  assert.match(result.prompt, /不得称呼自己为“林川”/);
+  assert.match(result.prompt, /标点、表情和网络语也只能从资料中的稳定表达习惯推断/);
+  assert.match(result.prompt, /克制不等于冷淡/);
   assert.match(result.prompt, /默认只写 2～4 个短句/);
-  assert.match(result.prompt, /第一句必须以“从现有资料看”或“我只能推测”开头/);
+  assert.match(result.prompt, /第一句优先以“我只能推测”开头/);
   assert.match(result.prompt, /不要举可能的答案/);
   assert.match(result.prompt, /输出前逐项删除/);
+  assert.match(result.prompt, /不要误判为人物生平推断/);
   assert.match(result.prompt, /没有可作为证据的已解析文字资料/);
   assert.deepEqual(result.sourceIds, []);
   assert.deepEqual(result.sources, []);
@@ -104,6 +112,7 @@ test('adds a bounded current-turn rule for hypothetical questions only', () => {
 
   const hypothetical = buildPersonaPrompt(profile, [], '如果我连续熬夜，你会支持吗？');
   assert.match(hypothetical.prompt, /本轮问题已被系统判定为“有限推断”/);
+  assert.match(hypothetical.prompt, /优先用第一人称对话口吻/);
   assert.match(hypothetical.prompt, /不得用第一人称补写未记录的经历/);
 
   const factual = buildPersonaPrompt(profile, [], '你是哪天出生的？');

@@ -28,6 +28,7 @@ import {
   finalizePersonaGroundingReview,
   PERSONA_GROUNDING_REVIEW_VERSION,
   shouldReviewPersonaAnswer,
+  shouldPreservePersonaReviewStructure,
 } from '@/lib/persona-grounding';
 
 interface PersistedMessage {
@@ -271,7 +272,12 @@ export default async function handler(
             userMessage: savedUserMessage,
           });
         }
-        const finalizedReview = finalizePersonaGroundingReview(reviewedContent);
+        const finalizedReview = finalizePersonaGroundingReview(reviewedContent, {
+          preserveReviewedStructure: shouldPreservePersonaReviewStructure(
+            message.trim(),
+            conversationContext
+          ),
+        });
         content = finalizedReview.answer;
         groundingReviewReducedToPrimarySource = finalizedReview.reducedToPrimarySource;
       }

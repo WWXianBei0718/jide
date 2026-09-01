@@ -112,7 +112,7 @@ export const getServerSideProps: GetServerSideProps<BlindEvalPageProps> = async 
     .filter((item) => item.status !== 'stable_pass')
     .map((item) => item.id));
   const cases = fictionalPersonaV1.cases
-    .filter((item) => nonStableIds.has(item.id))
+    .filter((item) => nonStableIds.has(item.id) || Boolean(item.humanReview))
     .map((item) => ({
       id: item.id,
       category: CATEGORY_LABELS[item.category] || item.category,
